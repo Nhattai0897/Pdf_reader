@@ -1,0 +1,22 @@
+class CoreImages {
+  static String? fileDoc;
+  static String? signature;
+  static String? pdfFile;
+  static String? mbs_camera;
+  static String? mbs_video;
+  static String? mbs_album;
+  static String? mbs_file;
+  static String? mbs_view_file;
+  static String? mbs_delete_file;
+  static String? fileImg;
+  static String? dinhfileXLSkem;
+  static String? filePDF;
+  static String? filePPT;
+  static String? fileVideo;
+  static String? fileNotFound;
+  static String? fileXLS;
+  static String? dinhkem;
+  static String? resize_icon;
+  static String? file_pdf;
+  static String? imageArrow;
+}
