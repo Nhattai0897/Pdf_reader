@@ -378,10 +378,10 @@ class _DashboardPageState extends State<DashboardPage>
                 title: state.isNight ? 'Light theme' : 'Dark theme',
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
-                image: Icon(
-                    state.isNight ? Icons.wb_sunny_outlined : Icons.nightlight,
-                    color: state.isNight ? Colors.yellow : Colors.white,
-                    size: 18)),
+                image: Image.asset(
+                  "assets/day-and-night.png",
+                  height: 20,
+                )),
             MenuItem.forList(
                 title: ' Private',
                 textAlign: TextAlign.center,
@@ -396,10 +396,10 @@ class _DashboardPageState extends State<DashboardPage>
                 title: state.isNight ? 'Light theme' : 'Dark theme',
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
-                image: Icon(
-                    state.isNight ? Icons.wb_sunny_outlined : Icons.nightlight,
-                    color: state.isNight ? Colors.yellow : Colors.white,
-                    size: 18)),
+                image: Image.asset(
+                  "assets/day-and-night.png",
+                  height: 20,
+                )),
           ];
 
     menu.show(widgetKey: btnKey);
@@ -487,11 +487,14 @@ class _DashboardPageState extends State<DashboardPage>
         itemBuilder: (context, index) {
           return InkWell(
             onTap: () {
-               Navigator.push(
+              Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => ViewFileMain(fileKyTen: 'https://www.africau.edu/images/default/sample.pdf', isKySo: false, isUseMauChuKy: false,
-
+                    builder: (context) => ViewFileMain(
+                          fileKyTen:
+                              'https://www.africau.edu/images/default/sample.pdf',
+                          isKySo: true,
+                          isUseMauChuKy: true,
                         )),
               );
               //ViewFileMain

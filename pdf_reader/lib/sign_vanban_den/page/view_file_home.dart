@@ -16,7 +16,6 @@ import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/frame_custom_support.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/no_data_screen.dart';
-import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf_reader/utils/networks.dart';
 import 'dart:ui' as ui;
@@ -102,16 +101,8 @@ class ViewFileHome extends StatefulWidget {
   _ViewFileHomeState createState() => _ViewFileHomeState();
 }
 
-class _ViewFileHomeState extends State<ViewFileHome> {
-  final GlobalKey _zero = GlobalKey();
-  final GlobalKey _one = GlobalKey();
-  final GlobalKey _two = GlobalKey();
-  final GlobalKey _three = GlobalKey();
-  final GlobalKey _four = GlobalKey();
-  final GlobalKey _five = GlobalKey();
-  final GlobalKey _six = GlobalKey();
-  final GlobalKey _seven = GlobalKey();
-  final GlobalKey _eight = GlobalKey();
+class _ViewFileHomeState extends State<ViewFileHome>
+    with TickerProviderStateMixin {
   GlobalKey _globalKey = new GlobalKey();
   GlobalKey _globalKeyTextField = new GlobalKey();
   final GlobalKey _containerFakePDFViewKey = GlobalKey();
@@ -163,7 +154,9 @@ class _ViewFileHomeState extends State<ViewFileHome> {
   BuildContext? myContext;
   TextEditingController noiDungButPheController = TextEditingController();
   bool isUseSignTemp = false;
-
+  bool isLoadFileSuccess = false;
+  bool isNightMode = false;
+  bool isEdit = false;
   @override
   initState() {
     super.initState();
@@ -180,7 +173,6 @@ class _ViewFileHomeState extends State<ViewFileHome> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    startShowCase();
   }
 
   @override
@@ -219,201 +211,151 @@ class _ViewFileHomeState extends State<ViewFileHome> {
       Completer<PDFViewController> _controller, BuildContext maincontext) {
     return BlocBuilder<ViewFileBloc, ViewFileState>(
         builder: (contextMain, state) {
-      return StreamBuilder(
-          stream: bloc.streamShow,
-          builder: (context, AsyncSnapshot<bool> value) {
-            var isShow = value.data ?? false;
-            return StreamBuilder<bool>(
-                stream: bloc.streamDownload,
-                builder: (context, snapshot) {
-                  var isShowError = snapshot.data ?? false;
-                  return Column(
+      return Column(
+        children: [
+          Container(
+              height: 60.0 + MediaQuery.of(context).padding.top,
+              color: Color.fromRGBO(118, 71, 248, 1.0),
+              child: Padding(
+                  padding:
+                      EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Container(
-                          height: 30 + MediaQuery.of(context).padding.top,
-                          color: Colors.red,
-                          child: Padding(
-                              padding: EdgeInsets.only(
-                                  top: MediaQuery.of(context).padding.top),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  IconButton(
-                                      onPressed: () => Navigator.pop(
-                                          maincontext, _linkResult),
-                                      icon: Icon(Icons.arrow_back_ios,
-                                          color: Colors.red)),
-                                  Padding(
-                                    padding: const EdgeInsets.all(0.0),
-                                    child: Container(
-                                        child: Text(
-                                      'Trang ${state.currentPage! + 1}${state.countPage != 0 ? ' / ' + state.countPage.toString() : ''}',
-                                    )),
-                                  ),
-                                  Spacer(),
-                                  const SizedBox(width: 5.0),
-                                  widget.isKySo
-                                      ? buildHeaderPDF(_controller, state,
-                                          isShowError, isShow)
-                                      : SizedBox(),
-                                  const SizedBox(width: 5)
-                                ],
-                              ))),
-                      Expanded(
-                          child: _isLoading
-                              ? Center(
-                                  child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    isShowError
-                                        ? SizedBox()
-                                        : CircularProgressIndicator(),
-                                    SizedBox(width: 15),
-                                    Text(isShowError
-                                        ? "Không tải được tài liệu"
-                                        : "Đang tải tài liệu...")
-                                  ],
-                                ))
-                              : FutureBuilder<PDFViewController>(
-                                  future: _controller.future,
-                                  builder: (context,
-                                      AsyncSnapshot<PDFViewController>
-                                          snapshot) {
-                                    if (snapshot.hasData &&
-                                        state.countPage == 0) {
-                                      getCountPage(snapshot);
-                                    }
-                                    double width = 0.0;
-                                    double height = 0.0;
-                                    Future<List<double>>? Function()
-                                        fetchNetworkCall = () async {
-                                      if (snapshot.hasData) {
-                                        final data = snapshot.data!;
-                                        final indexPage =
-                                            await data.getCurrentPage() ?? 0;
-                                        width = await data
-                                                .getPageWidth(indexPage) ??
-                                            0;
-                                        height = await data
-                                                .getPageHeight(indexPage) ??
-                                            0;
-                                      }
-                                      final ratioWidth = width / screenWidth;
-                                      height = height / ratioWidth;
-                                      return <double>[width, height];
-                                    };
-                                    return Stack(children: [
-                                      buildMCKTemp(state),
-                                      buildPdfView(_controller),
-                                      FutureBuilder<List<double>>(
-                                        future: fetchNetworkCall(),
-                                        builder:
-                                            (context, builder) =>
-                                                StreamBuilder<bool>(
-                                                    stream:
-                                                        bloc.streamcCalculator,
-                                                    builder: (context,
-                                                        snapshotSize) {
-                                                      var result =
-                                                          snapshotSize.data ??
-                                                              false;
-                                                      return Visibility(
-                                                        visible: result,
-                                                        child: Container(
-                                                          color: Colors
-                                                              .transparent,
-
-                                                          /// Container dùng để chặn scroll 2 đầu bên ngoài frame limit
-                                                          height: screenHeight,
-                                                          child: Center(
-                                                            child: Container(
-                                                              color: Colors
-                                                                  .white
-                                                                  .withOpacity(
-                                                                      0.01),
-                                                              key:
-                                                                  _containerFakePDFViewKey,
-                                                              width: builder
-                                                                      .data
-                                                                      ?.elementAt(
-                                                                          0) ??
-                                                                  0.0,
-                                                              height: builder
-                                                                      .data
-                                                                      ?.elementAt(
-                                                                          1) ??
-                                                                  0.0,
-                                                              child:
-                                                                  ResizebleWidget(
-                                                                      onDrag: (y,
-                                                                          x,
-                                                                          width,
-                                                                          height) {
-                                                                        dyFrame =
-                                                                            y;
-                                                                        dxFrame =
-                                                                            x;
-                                                                        widthFrame =
-                                                                            width;
-                                                                        heightFrame =
-                                                                            height;
-                                                                        // bloc.showFlusBar(
-                                                                        //     'x = $dyFrame y= $dxFrame',
-                                                                        //     LoaiThongBao.thatBai);
-                                                                      },
-                                                                      left:
-                                                                          dxFrame,
-                                                                      top:
-                                                                          dyFrame,
-                                                                      width:
-                                                                          widthFrame,
-                                                                      height:
-                                                                          heightFrame,
-                                                                      minHeightSize:
-                                                                          minHeightSize,
-                                                                      maxHeightSize:
-                                                                          maxHeightSize,
-                                                                      minWidthSize:
-                                                                          minWidthSize,
-                                                                      maxWidthSize:
-                                                                          maxWidthSize,
-                                                                      limitHeight:
-                                                                          builder.data?.elementAt(1) ??
-                                                                              0.0,
-                                                                      child:
-                                                                          Padding(
-                                                                        // padding: const EdgeInsets.only(top: 2.0, bottom: 5.0, left: 5.0, right: 5.0),
-                                                                        padding: const EdgeInsets.only(
-                                                                            top:
-                                                                                0.0,
-                                                                            bottom:
-                                                                                0.0,
-                                                                            left:
-                                                                                0.0,
-                                                                            right:
-                                                                                0.0),
-                                                                        child: state.fileImageWidget !=
-                                                                                null
-                                                                            ? Image.file(
-                                                                                state.fileImageWidget!,
-                                                                                fit: BoxFit.fill,
-                                                                              )
-                                                                            : SizedBox(),
-                                                                      )),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }),
-                                      ),
-                                    ]);
-                                  },
-                                )),
+                      IconButton(
+                          onPressed: () =>
+                              Navigator.pop(maincontext, _linkResult),
+                          icon:
+                              Icon(Icons.arrow_back_ios, color: Colors.white)),
+                      Padding(
+                        padding: const EdgeInsets.all(0.0),
+                        child: Container(
+                            child: Text(
+                          'Page ${state.currentPage! + 1}${state.countPage != 0 ? ' / ' + state.countPage.toString() : ''}',
+                          style: TextStyle(color: Colors.white),
+                        )),
+                      ),
+                      const Spacer(),
+                      const SizedBox(width: 5.0),
+                      Visibility(
+                          child: buildHeaderPDF(_controller, state),
+                          visible: widget.isKySo,
+                          maintainState: true),
+                      const SizedBox(width: 5.0)
                     ],
-                  );
-                });
-          });
+                  ))),
+          Expanded(
+              child: _isLoading
+                  ? StreamBuilder<bool>(
+                      stream: bloc.streamDownload,
+                      builder: (context, snapshot) {
+                        var isShowError = snapshot.data ?? false;
+                        return Center(
+                            child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            isShowError
+                                ? SizedBox()
+                                : CircularProgressIndicator(),
+                            SizedBox(width: 15),
+                            Text(isShowError
+                                ? "Unable to load document!"
+                                : "Document loading...")
+                          ],
+                        ));
+                      })
+                  : FutureBuilder<PDFViewController>(
+                      future: _controller.future,
+                      builder:
+                          (context, AsyncSnapshot<PDFViewController> snapshot) {
+                        if (snapshot.hasData && state.countPage == 0)
+                          getCountPage(snapshot);
+                        double width = 0.0;
+                        double height = 0.0;
+                        Future<List<double>>? Function() fetchNetworkCall =
+                            () async {
+                          if (snapshot.hasData) {
+                            final data = snapshot.data!;
+                            final indexPage = await data.getCurrentPage() ?? 0;
+                            width = await data.getPageWidth(indexPage) ?? 0;
+                            height = await data.getPageHeight(indexPage) ?? 0;
+                          }
+                          final ratioWidth = width / screenWidth;
+                          height = height / ratioWidth;
+                          return <double>[width, height];
+                        };
+                        return Stack(children: [
+                          buildMCKTemp(state),
+                          buildPdfView(_controller),
+                          FutureBuilder<List<double>>(
+                            future: fetchNetworkCall(),
+                            builder: (context, builder) => StreamBuilder<bool>(
+                                stream: bloc.streamcCalculator,
+                                builder: (context, snapshotSize) {
+                                  var result = snapshotSize.data ?? false;
+                                  return Visibility(
+                                    visible: result,
+                                    child: Container(
+                                      color: Colors.transparent,
+
+                                      /// Container dùng để chặn scroll 2 đầu bên ngoài frame limit
+                                      height: screenHeight,
+                                      child: Center(
+                                        child: Container(
+                                          color: Colors.white.withOpacity(0.01),
+                                          key: _containerFakePDFViewKey,
+                                          width:
+                                              builder.data?.elementAt(0) ?? 0.0,
+                                          height:
+                                              builder.data?.elementAt(1) ?? 0.0,
+                                          child: ResizebleWidget(
+                                              onDrag: (y, x, width, height) {
+                                                dyFrame = y;
+                                                dxFrame = x;
+                                                widthFrame = width;
+                                                heightFrame = height;
+                                                // bloc.showFlusBar(
+                                                //     'x = $dyFrame y= $dxFrame',
+                                                //     LoaiThongBao.thatBai);
+                                              },
+                                              left: dxFrame,
+                                              top: dyFrame,
+                                              width: widthFrame,
+                                              height: heightFrame,
+                                              minHeightSize: minHeightSize,
+                                              maxHeightSize: maxHeightSize,
+                                              minWidthSize: minWidthSize,
+                                              maxWidthSize: maxWidthSize,
+                                              limitHeight:
+                                                  builder.data?.elementAt(1) ??
+                                                      0.0,
+                                              child: Padding(
+                                                // padding: const EdgeInsets.only(top: 2.0, bottom: 5.0, left: 5.0, right: 5.0),
+                                                padding: const EdgeInsets.only(
+                                                    top: 0.0,
+                                                    bottom: 0.0,
+                                                    left: 0.0,
+                                                    right: 0.0),
+                                                child: state.fileImageWidget !=
+                                                        null
+                                                    ? Image.file(
+                                                        state.fileImageWidget!,
+                                                        fit: BoxFit.fill,
+                                                      )
+                                                    : SizedBox(),
+                                              )),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                          ),
+                        ]);
+                      },
+                    )),
+        ],
+      );
     });
   }
 
@@ -431,14 +373,14 @@ class _ViewFileHomeState extends State<ViewFileHome> {
         pageFling: true,
         displayAsBook: true,
         pageSnap: true,
-        backgroundColor: bgcolors.WHITE,
+        backgroundColor: isNightMode ? bgcolors.BLACK : bgcolors.WHITE,
         onRender: (_pages) async {
           setState(() {
             pages = _pages;
             isReady = true;
           });
         },
-        nightMode: false,
+        nightMode: isNightMode,
         onViewCreated: (PDFViewController pdfViewController) {
           _controller.complete(pdfViewController);
         },
@@ -479,163 +421,97 @@ class _ViewFileHomeState extends State<ViewFileHome> {
     );
   }
 
-  FutureBuilder buildHeaderPDF(Completer<PDFViewController> _controller,
-      ViewFileState state, bool isShowError, bool isShow) {
+  FutureBuilder buildHeaderPDF(
+      Completer<PDFViewController> _controller, ViewFileState state) {
     return FutureBuilder<PDFViewController>(
         future: _controller.future,
         builder: (maincontext, AsyncSnapshot<PDFViewController> snapshotPDF) {
-          return isShowError == false
-              ? Stack(
-                  children: [
-                    countBack > 0
-                        ? SizedBox()
-                        : !isThemButPhe
-                            ? Row(
-                                children: [
-                                  widget.isUseMauChuKy
-                                      ? buildChonMauButton(
-                                          maincontext, snapshotPDF, state)
-                                      : buildThemButPhe(isShowError,
-                                          snapshotPDF, state, _controller),
-                                ],
-                              )
-                            : SizedBox(),
-                    isShow
-                        ? !widget.isUseMauChuKy
-                            ? isThemButPhe
-                                ? SizedBox()
-                                : Container(
-                                    height: 30,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      color: Colors.red,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        RaisedButton(
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5)),
-                                          color: Colors.red,
-                                          onPressed: () async {
-                                            bool isEdit = await editPDF(
-                                                snapshotPDF: snapshotPDF,
-                                                pathFileLocal: valueStr,
-                                                noiDung: noiDungButPhe,
-                                                state: state);
-                                            if (!isEdit) {
-                                              bloc.showFlusBar(
-                                                  'Ký số không thành công',
-                                                  LoaiThongBao.thatBai);
-                                              return;
-                                            }
-                                            //isThemButPhe = true;
-                                            // var linkResult = await bloc
-                                            //     .postKySoKhongSuDungMCK(
-                                            //         pathFile,
-                                            //         widget.selectedMauChuKy
-                                            //                 ?.idMauChuKy ??
-                                            //             0,
-                                            //         widget.selectedMauChuKy
-                                            //                 ?.sdtKySo ??
-                                            //             '',
-                                            //         widget.fileKyTen);
-
-                                            // if (linkResult != null) {
-                                            //   countBack = countBack + 1;
-                                            //   setState(() {
-                                            //     offset = Offset.zero;
-                                            //   });
-                                            // }
-                                            // _linkResult = linkResult;
-                                          },
-                                          child: Text("Thực hiện ký số"),
-                                        ),
-                                        SizedBox(width: 5),
-                                        RaisedButton(
-                                          color: Colors.red,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5)),
-                                          onPressed: () {
-                                            bloc.pushShowData(false);
-                                            bloc.pushIndexCalculator(false);
-                                            cancelChonViTriKy();
-                                          },
-                                          child: Text("Huỷ"),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                            : Container(
-                                height: 30,
-                                color: Colors.red,
-                                child: Row(
-                                  children: [
-                                    RaisedButton(
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(5)),
-                                      color: Colors.red,
-                                      onPressed: () async {
-                                        bloc.pushShowData(false);
-                                        var linkStr = [];
-                                        var linkResult = await bloc.postChuKy(
-                                            pageIndex,
-                                            dxFrame,
-                                            dyFrame,
-                                            widthFrame,
-                                            heightFrame,
-                                            loaiHienThi,
-                                            firstPageWidth,
-                                            firstPageHeight,
-                                            bloc.fileName,
-                                            ratioParam,
-                                            firstPageHeight,
-                                            state.fileImageWidget,
-                                            widget.selectedMauChuKy?.sdtKySo ??
-                                                '',
-                                            widget.selectedMauChuKy
-                                                    ?.idMauChuKy ??
-                                                0);
-                                        state.fileImageWidget!.delete();
-                                        if (linkResult != null) {
-                                          state.fileImageWidget!.delete();
-                                          countBack = countBack + 1;
-                                          setState(() {
-                                            offset = Offset.zero;
-                                          });
-                                          linkStr = linkResult.split('|');
-                                          if (linkStr.length != 0) {
-                                            changePDF(
-                                                'url fake' + linkStr.first);
-                                          }
-                                        }
-                                        _linkResult = linkResult;
-                                      },
-                                      child: Text("Thực hiện ký"),
-                                    ),
-                                    SizedBox(width: 10),
-                                    RaisedButton(
-                                      color: Colors.red,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(5)),
-                                      onPressed: () {
-                                        state.fileImageWidget!.delete();
-                                        cancelChonViTriKy();
-                                        bloc.pushIndexCalculator(false);
-                                        bloc.pushShowData(false);
-                                      },
-                                      child: Text("Huỷ"),
-                                    ),
-                                  ],
+          return Visibility(
+              child: isEdit
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius:
+                                BorderRadius.all(Radius.circular(5.0))),
+                        child: Padding(
+                            padding: const EdgeInsets.all(5.0),
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  "assets/gallery.png",
+                                  height: 25,
                                 ),
-                              )
-                        : SizedBox()
-                  ],
-                )
-              : SizedBox();
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 15),
+                                  child: Image.asset(
+                                    "assets/edit-text.png",
+                                    height: 25,
+                                  ),
+                                ),
+                                Image.asset(
+                                  "assets/signature.png",
+                                  height: 25,
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: 13.0, right: 10.0),
+                                  child: Image.asset(
+                                    "assets/highlight.png",
+                                    height: 25,
+                                  ),
+                                ),
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      isEdit = false;
+                                    });
+                                  },
+                                  child: Image.asset(
+                                    "assets/cancel.png",
+                                    height: 25,
+                                  ),
+                                ),
+                              ],
+                            )),
+                      ))
+                  : Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  isNightMode = !isNightMode;
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 15),
+                                child: Image.asset(
+                                  "assets/day-and-night.png",
+                                  height: 28,
+                                ),
+                              )),
+                        ),
+                        InkWell(
+                            onTap: () {
+                              setState(() {
+                                isEdit = true;
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 15),
+                              child: Image.asset(
+                                "assets/pencil.png",
+                                height: 23,
+                              ),
+                            ))
+                      ],
+                    ),
+              visible: isLoadFileSuccess,
+              maintainState: true);
         });
   }
 
@@ -644,8 +520,6 @@ class _ViewFileHomeState extends State<ViewFileHome> {
     dxFrame = 0.0;
     dyFrame = 0.0;
   }
-
-  void startShowCase() {}
 
   FutureBuilder buildThemButPhe(
       bool isShowError,
@@ -688,31 +562,19 @@ class _ViewFileHomeState extends State<ViewFileHome> {
     //   'Căn cứ Quyết định số 678/QĐ-BNV ngày 27/8/2019 của Bộ trưởng Bộ Nội vụ ban hành Quy chế phát ngôn và cung cấp thông tin cho báo chí của Bộ Nội vụ;';
     bloc.getChuKyImage();
     if (widget.isKySo == false) {
-      if (widget.fileKyTen.contains('http')) {
-        //Online
-        changePDF(widget.fileKyTen.toString());
-      } else {
-        //Off line
-        loadDocument(widget.fileKyTen.toString());
-      }
+      // if (widget.fileKyTen.contains('www')) {
+      //   //Online
+      //   changePDF(widget.fileKyTen.toString());
+      // } else {
+      //   //Off line
+      //   loadDocument(widget.fileKyTen.toString());
+      // }
     } else {
-      bloc.loadTepDinhKem(widget.fileKyTen.toString()).then((value) async {
+      changePDF(widget.fileKyTen.toString()).then((value) {
         if (value != null) {
-          loadDocument(value);
-          WidgetsBinding.instance!.addPostFrameCallback(
-            (_) => Future.delayed(const Duration(milliseconds: 200), () {
-              // if (bloc.isFirst!)
-              //   ShowCaseWidget.of(myContext!)
-              //       .startShowCase([_zero, _one, _six, _seven]);
-            }),
-          );
           valueStr = value;
-          // bloc.getDanhSachChuKy(
-          //     danhSachChuKy: widget.danhSachChuKy ?? [],
-          //     isUseMauChuKy: widget.isUseMauChuKy);
         } else {
           bloc.pushDownLoadData(true);
-          // bloc.pushShowData(false);
         }
       });
     }
@@ -799,17 +661,17 @@ class _ViewFileHomeState extends State<ViewFileHome> {
   Widget buildChonMauButton(maincontext, snapshotPDF, ViewFileState state) {
     return FlatButton(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      color: Colors.red,
+      color: Colors.white,
       onPressed: () async {
         await snapshotPDF.data!.resetZoom(1);
         getSizeFirstPage(snapshotPDF, pageIndex, state);
         // if (state.fileImageWidget == null) {
-        await bloc.getMauChuKyConvertFile(
-            mauChuKyDefault: widget.selectedMauChuKy!,
-            globalKey: _globalKey,
-            isUsedSignTemp: isUseSignTemp);
+        // await bloc.getMauChuKyConvertFile(
+        //     mauChuKyDefault: widget.selectedMauChuKy!,
+        //     globalKey: _globalKey,
+        //     isUsedSignTemp: isUseSignTemp);
         // }
-        bloc.pushShowData(true);
+        // bloc.pushShowData(true);
         bloc.checkFirstTime();
       },
       child: Text("Chọn vị trí chữ ký"),
@@ -938,12 +800,19 @@ class _ViewFileHomeState extends State<ViewFileHome> {
     }
   }
 
-  void changePDF(link) async {
+  Future<String?> changePDF(link) async {
     setState(() => _isLoading = true);
     await createFileOfPdfUrl(link).then((value) {
-      if (value != null) pathPDF = value.path;
+      if (value != null) {
+        pathPDF = value.path;
+        isLoadFileSuccess = true;
+        setState(() => _isLoading = false);
+        return pathPDF;
+      } else {
+        setState(() => _isLoading = true);
+        return null;
+      }
     });
-    setState(() => _isLoading = false);
   }
 
   void settingModalBottomSheetV2(
@@ -964,7 +833,6 @@ class _ViewFileHomeState extends State<ViewFileHome> {
                 child: Center(
                   child: BlocBuilder<ViewFileBloc, ViewFileState>(
                       builder: (contextMain, state) {
-                    checkSetDefaultConfig(chuKyMacDinh: state.chuKyMacDinh);
                     return Container(
                       height: screenHeight * 0.55,
                       width: screenWidth - 30,
@@ -978,107 +846,86 @@ class _ViewFileHomeState extends State<ViewFileHome> {
                         children: [
                           buildHeaderPopUp(snapshotPDF, pageIndex, context),
                           SizedBox(height: 10),
-                          Showcase(
-                            key: _two,
-                            title: 'Mẫu chữ ký mặc định',
-                            description:
-                                'Nhấn vào để hiển thị danh sách và thay đổi mẫu chữ ký',
-                            child: Container(
-                              decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black)),
-                              width: screenWidth - 60,
-                              child: Row(
-                                children: [
-                                  SizedBox(width: 15.0),
-                                ],
-                              ),
+                          Container(
+                            decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black)),
+                            width: screenWidth - 60,
+                            child: Row(
+                              children: [
+                                SizedBox(width: 15.0),
+                              ],
                             ),
                           ),
                           Padding(
                             padding: const EdgeInsets.only(
                                 top: 5.0, left: 15.0, right: 15.0, bottom: 5.0),
-                            child: Showcase(
-                              key: _three,
-                              description: 'Mẫu chữ ký dùng cho ký số',
-                              child: RepaintBoundary(
-                                  key: _globalKey,
-                                  child: state.mauChuKy ??
-                                      NoDataScreen(isVisible: true)),
-                            ),
+                            child: RepaintBoundary(
+                                key: _globalKey,
+                                child: state.mauChuKy ??
+                                    NoDataScreen(isVisible: true)),
                           ),
                           Visibility(
                             visible: false,
-                            child: Showcase(
-                              key: _four,
-                              description:
-                                  'Chọn nếu ông/bà muốn sử dụng vị trí đã được cấu hình. ',
-                              child: Row(
-                                children: [
-                                  Checkbox(
-                                    activeColor: Colors.red,
-                                    value: isViTriMacDinh == true
-                                        ? state.isUseDefaultConfig
-                                        : isViTriMacDinh,
-                                    onChanged: (isUse) {
-                                      if (isViTriMacDinh) {
-                                        bloc.suDungViTriCauHinhAct(
-                                            isUse: isUse ?? false);
-                                      }
-                                    },
-                                  ),
-                                  Expanded(
-                                      child: Text(
-                                          isViTriMacDinh
-                                              ? "Vị trí chữ ký đã cấu hình (${viTri != '' ? 'vị trí: $viTri - ' : ''}$soTrang)"
-                                              : "Vị trí chữ ký đã cấu hình",
-                                          style: TextStyle(
-                                              color: isViTriMacDinh
-                                                  ? Colors.black
-                                                  : Colors.grey,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w700)))
-                                ],
-                              ),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  activeColor: Colors.red,
+                                  value: isViTriMacDinh == true
+                                      ? state.isUseDefaultConfig
+                                      : isViTriMacDinh,
+                                  onChanged: (isUse) {
+                                    if (isViTriMacDinh) {
+                                      bloc.suDungViTriCauHinhAct(
+                                          isUse: isUse ?? false);
+                                    }
+                                  },
+                                ),
+                                Expanded(
+                                    child: Text(
+                                        isViTriMacDinh
+                                            ? "Vị trí chữ ký đã cấu hình (${viTri != '' ? 'vị trí: $viTri - ' : ''}$soTrang)"
+                                            : "Vị trí chữ ký đã cấu hình",
+                                        style: TextStyle(
+                                            color: isViTriMacDinh
+                                                ? Colors.black
+                                                : Colors.grey,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700)))
+                              ],
                             ),
                           ),
                           Expanded(child: SizedBox()),
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10.0),
-                            child: Showcase(
-                              key: _five,
-                              title: 'Tiếp tục thực hiện ký số',
-                              description:
-                                  'Nhấn để xác nhận mẫu chữ ký và tiếp tục quá trình ký số',
-                              child: Padding(
-                                padding: const EdgeInsets.all(5.0),
-                                child: InkWell(
-                                    onTap: () async {
-                                      try {
-                                        getSizeFirstPage(
-                                            snapshotPDF, pageIndex, state);
-                                        await _capturePng();
-                                        bloc.pushShowData(true);
-                                        bloc.checkFirstTime();
-                                        Navigator.of(myContext!).pop();
-                                      } catch (e) {
-                                        print(e);
-                                      }
-                                    },
-                                    child: Container(
-                                      height: 40,
-                                      width: 150,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: Colors.red,
+                            child: Padding(
+                              padding: const EdgeInsets.all(5.0),
+                              child: InkWell(
+                                  onTap: () async {
+                                    try {
+                                      getSizeFirstPage(
+                                          snapshotPDF, pageIndex, state);
+                                      await _capturePng();
+                                      //bloc.pushShowData(true);
+                                      bloc.checkFirstTime();
+                                      Navigator.of(myContext!).pop();
+                                    } catch (e) {
+                                      print(e);
+                                    }
+                                  },
+                                  child: Container(
+                                    height: 40,
+                                    width: 150,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.red,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(5.0),
+                                      child: Center(
+                                        child: Text("Thực hiện ký số"),
                                       ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(5.0),
-                                        child: Center(
-                                          child: Text("Thực hiện ký số"),
-                                        ),
-                                      ),
-                                    )),
-                              ),
+                                    ),
+                                  )),
                             ),
                           ),
                         ],
@@ -1161,7 +1008,7 @@ class _ViewFileHomeState extends State<ViewFileHome> {
                                           noiDungButPheController.text;
                                       getSizeFirstPage(
                                           snapshotPDF, pageIndex, state);
-                                      bloc.pushShowData(true);
+                                      // bloc.pushShowData(true);
                                     },
                                     child: Container(
                                       height: 40,
@@ -1240,9 +1087,7 @@ class _ViewFileHomeState extends State<ViewFileHome> {
           child: TextField(
             autofocus: true,
             onChanged: (value) {
-              if (value.length > 220) {
-                bloc.showLimitLength();
-              }
+              if (value.length > 220) bloc.showLimitLength();
             },
             controller: noiDungButPheController,
             textInputAction: TextInputAction.done,
@@ -1257,12 +1102,6 @@ class _ViewFileHomeState extends State<ViewFileHome> {
           )),
     );
   }
-
-  // void onChangeDropdownItem(MauChuKySoModel selected) {
-  //   setState(() {
-  //     selectedMauChuKy = selected;
-  //   });
-  // }
 
   Future<File?> _capturePng() async {
     try {
@@ -1374,52 +1213,6 @@ class _ViewFileHomeState extends State<ViewFileHome> {
     if (link != null) {
       pathPDF = link;
       setState(() => _isLoading = false);
-    }
-  }
-
-  void checkSetDefaultConfig({MauChuKySoModel? chuKyMacDinh}) {
-    try {
-      if (chuKyMacDinh != null) {
-        selectedMauChuKy = chuKyMacDinh;
-        // intViTriChuKyMacDinh:0 - intViTriTrang:0 -> không chọn vị trí và trang
-        if (selectedMauChuKy.intViTriChuKyMacDinh != 0 ||
-            selectedMauChuKy.intViTriTrang != 0) {
-          isViTriMacDinh = true;
-        }
-      }
-
-      switch (selectedMauChuKy.intViTriTrang ?? 0) {
-        case -1:
-          soTrang = ' trang đầu';
-          break;
-        case -2:
-          soTrang = ' trang cuối';
-          break;
-        default:
-          if (selectedMauChuKy.intViTriTrang == null) {
-            soTrang = 'trang số: 0';
-          } else {
-            soTrang = ' trang số: ' + selectedMauChuKy.intViTriTrang.toString();
-          }
-      }
-
-      switch (selectedMauChuKy.intViTriChuKyMacDinh ?? 0) {
-        case 1:
-          viTri = 'Gốc dưới bên phải';
-          break;
-        case 2:
-          viTri = 'Gốc dưới bên trái';
-          break;
-        case 3:
-          viTri = 'Gốc trên bên phải';
-          break;
-        case 4:
-          viTri = 'Gốc trên bên trái';
-          break;
-        default:
-      }
-    } catch (e) {
-      print('Lỗi trong quá trình set chữ ký default $e');
     }
   }
 }

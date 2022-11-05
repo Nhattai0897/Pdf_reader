@@ -850,14 +850,14 @@ class ViewFileBloc extends Cubit<ViewFileState> {
 
   ////////////
 
-  final StreamController<bool> showController =
-      StreamController<bool>.broadcast();
+  // final StreamController<bool> showController =
+  //     StreamController<bool>.broadcast();
 
-  Stream<bool> get streamShow => showController.stream;
+  // Stream<bool> get streamShow => showController.stream;
 
-  void pushShowData(bool isShow) {
-    showController.sink.add(isShow);
-  }
+  // void pushShowData(bool isShow) {
+  //   showController.sink.add(isShow);
+  // }
 
   ////////////
 
@@ -968,7 +968,7 @@ class ViewFileBloc extends Cubit<ViewFileState> {
   void closeStream() {
     typeCKImageController.close();
     typeController.close();
-    showController.close();
+   // showController.close();
     updateController.close();
     updateListController.close();
     errorController.close();
