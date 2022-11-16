@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
+
 class ResizebleWidget extends StatefulWidget {
   ResizebleWidget(
       {this.child,
@@ -116,7 +117,8 @@ class _ResizebleWidgetState extends State<ResizebleWidget> {
     await Future.delayed(Duration(milliseconds: 500));
     final keyContext = stickyKey.currentContext;
     final box = keyContext!.findRenderObject() as RenderBox;
-    widget.onDrag!(0.0, 0.0, box.size.width, box.size.height);
+    widget.onDrag!(0.0, 0.0, box.size.width, 100.0);
+    // widget.onDrag!(0.0, 0.0, box.size.width, box.size.height);
   }
 
   _handleUpdate(details) {
@@ -150,7 +152,7 @@ class _ResizebleWidgetState extends State<ResizebleWidget> {
     }
     widget.onDrag!(
         widget.top! + dy, widget.left!, widget.width, box.size.height);
-   // print('Sizeable y: ${widget.top! + dy}, x: ${widget.left!}, width: ${widget.width}, height: ${box.size.height}');
+    // print('Sizeable y: ${widget.top! + dy}, x: ${widget.left!}, width: ${widget.width}, height: ${box.size.height}');
     setState(() {
       widget.top = widget.top! + dy;
       widget.left = widget.left! + dx;
@@ -206,7 +208,7 @@ class _ManipulatingBallState extends State<ManipulatingBall> {
             ? SizedBox()
             : Padding(
                 padding: const EdgeInsets.all(7.0),
-                child:  Icon(Icons.photo_size_select_large_outlined),
+                child: Image.asset('assets/resize.png'),
               ),
         decoration: BoxDecoration(
           color: Colors.blue.withOpacity(widget.isDragCorner! ? 0 : 0.5),

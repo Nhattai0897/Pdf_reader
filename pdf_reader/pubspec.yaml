@@ -8,7 +8,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
 # followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
+# Both the version and the builder number may be overridden in flutter  
 # build by specifying --build-name and --build-number, respectively.
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
@@ -45,9 +45,10 @@ dependencies:
   image_picker: ^0.7.5+3
   file_picker: ^3.0.3
   http: ^0.13.3
-  package_info: 2.0.1 
-  syncfusion_flutter_pdf: 19.1.56-beta
-  showcaseview: 1.1.7 
+  package_info: 2.0.1  
+  showcaseview: 1.1.7
+  painter: ^2.0.0 
+  flutter_colorpicker: 0.4.0  
   flutter_fullpdfview:
     path: ../../Pdf_reader/flutter_fullpdfview-master
   

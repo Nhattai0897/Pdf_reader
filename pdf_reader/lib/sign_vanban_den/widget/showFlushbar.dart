@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:another_flushbar/flushbar.dart'; 
+import 'package:another_flushbar/flushbar.dart';
 
 enum LoaiThongBao { thanhCong, thatBai, canhBao }
 
@@ -19,13 +19,12 @@ void showFlushbar(
       color = Colors.red;
       break;
     case LoaiThongBao.canhBao:
-      color = Colors.amber;
+      color = Colors.amber[500]!;
       break;
   }
 
   Flushbar(
-    messageText:
-        Text(message!, style: TextStyle(color: Colors.blue)),
+    messageText: Text(message!, style: TextStyle(color: Colors.white)),
     icon: icon == null ? Container() : icon,
     backgroundColor: color,
     flushbarPosition: FlushbarPosition.TOP,

@@ -10,9 +10,9 @@ import 'package:pdf_reader/sign_vanban_den/bloc/view_file_bloc.dart';
 import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'dart:ui' as ui;
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart'; 
+import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
-import 'package:pdf_reader/sign_vanban_den/widget/no_data_screen.dart'; 
+import 'package:pdf_reader/sign_vanban_den/widget/no_data_screen.dart';
 
 class DigitalSignMain {
   final BuildContext mainContext;
@@ -20,6 +20,7 @@ class DigitalSignMain {
   final bool isKySo;
   final bool isUseMauChuKy;
   List<MauChuKySoModel>? danhSachChuKy;
+  final bool isNightMode;
   final Function(String)? resultData;
 
   DigitalSignMain._({
@@ -27,6 +28,7 @@ class DigitalSignMain {
     required this.fileKyTen,
     required this.isKySo,
     required this.isUseMauChuKy,
+    required this.isNightMode,
     this.danhSachChuKy,
     this.resultData,
   });
@@ -44,6 +46,7 @@ class DigitalSignMain {
           required String fileKyTen,
           required bool isKySo,
           required bool isUseMauChuKy,
+          required bool isNightMode,
           List<MauChuKySoModel>? danhSachChuKy,
           final Function(String)? resultData}) =>
       DigitalSignMain._(
@@ -51,6 +54,7 @@ class DigitalSignMain {
         isKySo: isKySo,
         isUseMauChuKy: isUseMauChuKy,
         danhSachChuKy: danhSachChuKy,
+        isNightMode: isNightMode,
         mainContext: mainContext,
         resultData: resultData,
       )..navigateFnc();
@@ -66,6 +70,7 @@ class DigitalSignMain {
                     isUseMauChuKy: isUseMauChuKy,
                     fileKyTen: fileKyTen,
                     danhSachChuKy: danhSachChuKy,
+                    isNightMode: isNightMode,
                     selectedMauChuKy: danhSachChuKy![0],
                   )));
       resultData!.call(pathFile ?? '');
@@ -169,6 +174,8 @@ class DigitalSignMain {
                                                             state.danhSachChuKy,
                                                         selectedMauChuKy:
                                                             selectedMauChuKy!,
+                                                        isNightMode:
+                                                            isNightMode,
                                                         fileImgMauChuKy:
                                                             fileImgMauChuKy)));
                                         Navigator.pop(mainContext, pathFile);

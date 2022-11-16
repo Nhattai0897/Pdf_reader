@@ -32,7 +32,7 @@ void customModalBottomSheet(BuildContext? ctx,
                   //     color: Colors.blue, fontSize: CoreFontSize.defaultAddSix),
                 ),
               ),
-              SizedBox(
+              const SizedBox(
                 height: 10.0,
               ),
               Container(
@@ -41,32 +41,32 @@ void customModalBottomSheet(BuildContext? ctx,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Visibility(
-                      visible: isChupHinh!,
+                      visible: isChupHinh ?? false,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/mbs_camera.png',
                           title: 'Chụp hình',
-                          function: fChupHinh!,
+                          function: fChupHinh,
                         ),
                       ),
                     ),
                     Visibility(
-                      visible: isVideo!,
+                      visible: isVideo ?? false,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/mbs_video.png',
                           title: 'Quay video',
-                          function: fVideo!,
+                          function: fVideo,
                         ),
                       ),
                     ),
                     Visibility(
-                      visible: isAlbum!,
+                      visible: isAlbum ?? false,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/mbs_album.png',
                           title: 'Bộ sưu tập',
-                          function: fAlbum!,
+                          function: fAlbum,
                         ),
                       ),
                     ),
@@ -82,22 +82,22 @@ void customModalBottomSheet(BuildContext? ctx,
                     //   ),
                     // ),
                     Visibility(
-                      visible: isXemTapTin!,
+                      visible: isXemTapTin ?? false,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/mbs_view_file.png',
                           title: 'Xem tập tin',
-                          function: fXemTapTin!,
+                          function: fXemTapTin,
                         ),
                       ),
                     ),
                     Visibility(
-                      visible: isXoaTapTin!,
+                      visible: isXoaTapTin ?? false,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/mbs_delete_file.png',
                           title: 'Xoá tập tin',
-                          function: fXoaTapTin!,
+                          function: fXoaTapTin,
                         ),
                       ),
                     ),
@@ -133,7 +133,7 @@ class ItemFunction extends StatelessWidget {
               ),
             ),
             Text(
-              title.toString(), 
+              title.toString(),
             ),
           ],
         ),

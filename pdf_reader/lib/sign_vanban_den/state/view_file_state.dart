@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart'; 
+import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
+import 'package:pdf_reader/utils/bloc_builder_status.dart';
 
 class ViewFileState {
   BlocBuilderStatusCase? status;
@@ -22,6 +23,9 @@ class ViewFileState {
   bool? isFirst;
   bool? isShowWarning;
   bool? isContinue;
+  bool? isShowSign;
+  bool? isDraw;
+  TypeEditCase? typeEditCase;
 
   ViewFileState(
       {this.status,
@@ -41,7 +45,10 @@ class ViewFileState {
       this.currentPage,
       this.isFirst,
       this.isShowWarning,
-      this.isContinue = false});
+      this.typeEditCase = TypeEditCase.all,
+      this.isContinue = false,
+      this.isShowSign = false,
+      this.isDraw = false});
   ViewFileState copyWith(
       {BlocBuilderStatusCase? status,
       BlocBuilderStatusCase? statusLoadSign,
@@ -60,7 +67,10 @@ class ViewFileState {
       int? currentPage,
       bool? isFirst,
       bool? isShowWarning,
-      bool? isContinue}) {
+      bool? isContinue,
+      bool? isShowSign,
+      bool? isDraw,
+      TypeEditCase? typeEditCase}) {
     return ViewFileState(
         status: status ?? this.status,
         statusLoadSign: statusLoadSign ?? this.statusLoadSign,
@@ -79,6 +89,9 @@ class ViewFileState {
         currentPage: currentPage ?? this.currentPage,
         isFirst: isFirst ?? this.isFirst,
         isShowWarning: isShowWarning ?? this.isShowWarning,
-        isContinue: isContinue ?? this.isContinue);
+        isContinue: isContinue ?? this.isContinue,
+        isShowSign: isShowSign ?? this.isShowSign,
+        isDraw: isDraw ?? this.isDraw,
+        typeEditCase: typeEditCase ?? this.typeEditCase);
   }
 }

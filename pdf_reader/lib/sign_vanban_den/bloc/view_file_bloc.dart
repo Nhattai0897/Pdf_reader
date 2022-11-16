@@ -10,6 +10,7 @@ import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
+import 'package:pdf_reader/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/utils/networks.dart';
 
 class ViewFileBloc extends Cubit<ViewFileState> {
@@ -247,19 +248,25 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     }
   }
 
-  void warningButPhe() {
-    // flushbar.showFlushbar(
-    //   ctx: mainContext,
-    //   loaiThongBao: LoaiThongBao.canhBao,
-    //   message: 'Vui lòng nhập nội dung bút phê',
-    //   tgianHienThi: 2,
-    //   icon: Icon(
-    //     Icons.warning,
-    //     size: 28,
-    //     color: Colors.yellow,
-    //   ),
-    // );
+  void warningButPhe(
+      {required String title, required LoaiThongBao loaiThongBao}) {
+    showFlushbar(
+      ctx: mainContext,
+      loaiThongBao: loaiThongBao,
+      message: title,
+      tgianHienThi: 2,
+      icon: Icon(
+        Icons.warning,
+        size: 28,
+        color: Colors.yellowAccent,
+      ),
+    );
   }
+
+  void showSignFrame(bool isShowSign) =>
+      emit(state.copyWith(isShowSign: isShowSign));
+
+  void showDrawFrame(bool isDraw) => emit(state.copyWith(isDraw: isDraw));
 
   Future<String?> loadTepDinhKem(String tenTepDinhKem) async {
     // fullPathFile = tenTepDinhKem;
@@ -776,24 +783,12 @@ class ViewFileBloc extends Cubit<ViewFileState> {
   //   }
   // }
 
-  void showFlusBar(String msg, LoaiThongBao loaiThongBao) {
-    // flushbar.showFlushbar(
-    //   ctx: mainContext,
-    //   loaiThongBao: loaiThongBao,
-    //   message: msg,
-    //   tgianHienThi: 2,
-    //   icon: Icon(
-    //     loaiThongBao == LoaiThongBao.thanhCong
-    //         ? Icons.check_box_outlined
-    //         : Icons.error_outline_rounded,
-    //     size: 28,
-    //     color: ConfigColor.colorIconAppbar,
-    //   ),
-    // );
-  }
-
   void emitFileWidget({required File fileImageWidget}) {
     emit(state.copyWith(fileImageWidget: fileImageWidget));
+  }
+
+  void emitTypeWidget({required TypeEditCase typeEditCase}) {
+    emit(state.copyWith(typeEditCase: typeEditCase));
   }
 
   void setCountPage({required int countPage}) {
@@ -968,7 +963,7 @@ class ViewFileBloc extends Cubit<ViewFileState> {
   void closeStream() {
     typeCKImageController.close();
     typeController.close();
-   // showController.close();
+    // showController.close();
     updateController.close();
     updateListController.close();
     errorController.close();

@@ -491,8 +491,10 @@ class _DashboardPageState extends State<DashboardPage>
                 context,
                 MaterialPageRoute(
                     builder: (context) => ViewFileMain(
+                          isNightMode: false,
+                          //state.isNight,
                           fileKyTen:
-                              'https://www.africau.edu/images/default/sample.pdf',
+                              'https://www.au-sonpo.co.jp/corporate/upload/article/89/article_89_1.pdf',
                           isKySo: true,
                           isUseMauChuKy: true,
                         )),

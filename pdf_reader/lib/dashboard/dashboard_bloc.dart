@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:pdf_reader/utils/bloc_builder_status.dart';
+import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'dashboard_state.dart';
 
 class DashboardBloc extends Cubit<DashboardState> {
