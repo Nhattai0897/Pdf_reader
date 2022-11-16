@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'dashboard/dashboard_page.dart';
+import 'dashboard/test_authen.dart';
+import 'dashboard/test_loading.dart';
+
 void main() {
   runApp(MyApp());
 }
@@ -22,7 +26,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: DashboardHome(),
     );
   }
 }
