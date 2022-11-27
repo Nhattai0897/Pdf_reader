@@ -131,36 +131,29 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     // }
   }
 
-  // void showDialogDelete(contextGobal) {
-  //   showDialog(
-  //       context: contextGobal,
-  //       builder: (_) => new AlertDialog(
-  //             title: Text(
-  //               'Ông/bà có muốn xóa',
-  //               style: CoreTextStyle.regularTextFont(
-  //                   fontSize: CoreFontSize.defaultAddTwo),
-  //             ),
-  //             actions: [
-  //               FlatButton(
-  //                 child: Text(
-  //                   'Hủy',
-  //                   style: CoreTextStyle.regularTextFont(
-  //                       fontSize: CoreFontSize.defaultSize),
-  //                 ),
-  //                 onPressed: () => Navigator.of(this.mainContext).pop(),
-  //               ),
-  //               FlatButton(
-  //                 child: Text(
-  //                   'Đồng ý',
-  //                   style: CoreTextStyle.regularTextFont(
-  //                       fontSize: CoreFontSize.defaultSize,
-  //                       color: CoreColors.appbar_color),
-  //                 ),
-  //                 onPressed: () {},
-  //               ),
-  //             ],
-  //           ));
-  // }
+  void showDialogDelete(contextGobal) {
+    showDialog(
+        context: contextGobal,
+        builder: (_) => new AlertDialog(
+              title: Text(
+                'Ông/bà có muốn xóa',
+              ),
+              actions: [
+                FlatButton(
+                  child: Text(
+                    'Hủy',
+                  ),
+                  onPressed: () => Navigator.of(this.mainContext).pop(),
+                ),
+                FlatButton(
+                  child: Text(
+                    'Đồng ý',
+                  ),
+                  onPressed: () {},
+                ),
+              ],
+            ));
+  }
 
   // Future<void> getDanhSachChuKy(
   //     {required List<MauChuKySoModel> danhSachChuKy,
@@ -256,9 +249,17 @@ class ViewFileBloc extends Cubit<ViewFileState> {
       message: title,
       tgianHienThi: 2,
       icon: Icon(
-        Icons.warning,
+        loaiThongBao == LoaiThongBao.canhBao
+            ? Icons.warning
+            : loaiThongBao == LoaiThongBao.thanhCong
+                ? Icons.check_circle_outline_outlined
+                : Icons.clear,
         size: 28,
-        color: Colors.yellowAccent,
+        color: loaiThongBao == LoaiThongBao.canhBao
+            ? Colors.yellow[100]
+            : loaiThongBao == LoaiThongBao.thanhCong
+                ? Colors.green[100]
+                : Colors.red[100],
       ),
     );
   }
@@ -337,20 +338,20 @@ class ViewFileBloc extends Cubit<ViewFileState> {
   }
 
   //////// Get Image Chữ Ký ///////
-  void getChuKyImage() async {
-    // emit(state.copyWith(status: BlocBuilderStatusCase.loading));
-    // var dataResult = await viewFileApi?.getChuKyImage();
-    // if (dataResult != null) {
-    //   loaiCKs = dataResult.split("|");
-    //   emit(state.copyWith(
-    //       imageLoai1: loaiCKs[0],
-    //       imageLoai2: loaiCKs[1],
-    //       imageLoai3: loaiCKs[2],
-    //       status: BlocBuilderStatusCase.success));
-    // } else {
-    //   emit(state.copyWith(status: BlocBuilderStatusCase.failure));
-    // }
-  }
+  // void getChuKyImage() async {
+  //   // emit(state.copyWith(status: BlocBuilderStatusCase.loading));
+  //   // var dataResult = await viewFileApi?.getChuKyImage();
+  //   // if (dataResult != null) {
+  //   //   loaiCKs = dataResult.split("|");
+  //   //   emit(state.copyWith(
+  //   //       imageLoai1: loaiCKs[0],
+  //   //       imageLoai2: loaiCKs[1],
+  //   //       imageLoai3: loaiCKs[2],
+  //   //       status: BlocBuilderStatusCase.success));
+  //   // } else {
+  //   //   emit(state.copyWith(status: BlocBuilderStatusCase.failure));
+  //   // }
+  // }
 
   Future<String?> postChuKy(
       int? pageIndex,
@@ -902,6 +903,7 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     errorController.sink.add(isShow);
   }
 
+  ///////////////////////////////
   final StreamController<bool> errorDownLoadController =
       StreamController<bool>.broadcast();
 
@@ -909,6 +911,15 @@ class ViewFileBloc extends Cubit<ViewFileState> {
 
   void pushDownLoadData(bool isShow) {
     errorDownLoadController.sink.add(isShow);
+  } ///////////////////////////////
+
+  final StreamController<bool> loadingDrawController =
+      StreamController<bool>.broadcast();
+
+  Stream<bool> get streamLoadingDraw => loadingDrawController.stream;
+
+  void pushDownLoadDraw(bool isShow) {
+    loadingDrawController.sink.add(isShow);
   }
 
   ///////////////////////////////
@@ -971,5 +982,6 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     calculatorController.close();
     typeCKController.close();
     showNoteController.close();
+    loadingDrawController.close();
   }
 }

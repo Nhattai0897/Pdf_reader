@@ -49,6 +49,13 @@ dependencies:
   showcaseview: 1.1.7
   painter: ^2.0.0 
   flutter_colorpicker: 0.4.0  
+  syncfusion_flutter_pdf: 19.1.56-beta
+  flutter_spinkit: ^5.1.0 
+  storage_info: ^0.0.1
+  file_manager: ^1.0.1
+  permission_handler:  
+  get_storage: ^2.0.3
+  path: ^1.6.4   
   flutter_fullpdfview:
     path: ../../Pdf_reader/flutter_fullpdfview-master
   

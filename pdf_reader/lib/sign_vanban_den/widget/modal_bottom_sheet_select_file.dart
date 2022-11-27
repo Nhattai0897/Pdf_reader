@@ -5,11 +5,13 @@ void customModalBottomSheet(BuildContext? ctx,
     bool? isVideo = false,
     bool? isAlbum = false,
     bool? isFile = false,
+    bool? isUrl = false,
     bool? isXemTapTin = false,
     bool? isXoaTapTin = false,
     Function()? fChupHinh,
     Function()? fVideo,
     Function()? fAlbum,
+    Function()? fUrl,
     Function()? fFile,
     Function()? fXemTapTin,
     Function()? fXoaTapTin}) {
@@ -70,17 +72,16 @@ void customModalBottomSheet(BuildContext? ctx,
                         ),
                       ),
                     ),
-                    // Visibility(
-                    //   visible: isFile,
-                    //   child: Expanded(
-                    //     child: ItemFunction(
-                    //       pathImage:
-                    //           CoreImages.mbs_file,
-                    //       title: 'Chọn file',
-                    //       function: fFile,
-                    //     ),
-                    //   ),
-                    // ),
+                    Visibility(
+                      visible: isFile ?? false,
+                      child: Expanded(
+                        child: ItemFunction(
+                          pathImage: 'assets/storage_phone.png',
+                          title: 'Chọn file',
+                          function: fFile,
+                        ),
+                      ),
+                    ),
                     Visibility(
                       visible: isXemTapTin ?? false,
                       child: Expanded(
@@ -98,6 +99,16 @@ void customModalBottomSheet(BuildContext? ctx,
                           pathImage: 'assets/mbs_delete_file.png',
                           title: 'Xoá tập tin',
                           function: fXoaTapTin,
+                        ),
+                      ),
+                    ),
+                    Visibility(
+                      visible: isUrl ?? false,
+                      child: Expanded(
+                        child: ItemFunction(
+                          pathImage: 'assets/url.png',
+                          title: 'Url link',
+                          function: fUrl,
                         ),
                       ),
                     ),

@@ -63,7 +63,7 @@ class _ResizebleWidgetState extends State<ResizebleWidget> {
             left: widget.left,
             child: Container(
                 key: stickyKey,
-                color: Colors.blue.withOpacity(0.2),
+                color: Colors.blue.withOpacity(0.1),
                 width: widget.width,
                 child: widget.child),
           ),

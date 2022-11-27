@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../popup_menu.dart';
+import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart'; 
 
 /// 菜单配置
 class MenuConfig {

@@ -1,13 +1,21 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart';
+import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
+import 'package:pdf_reader/sign_vanban_den/widget/modal_bottom_sheet_select_file.dart';
 import 'package:pdf_reader/utils/format_date.dart';
 import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart';
 import 'package:percent_indicator/percent_indicator.dart';
@@ -41,6 +49,7 @@ class _DashboardPageState extends State<DashboardPage>
   late List<GlobalObjectKey<FormState>> formKeyList;
   late TextEditingController searchController;
   String msg = "You are not authorized.";
+  late String pathFile;
   /////////////////
   late Animation<Color?> animation;
   late AnimationController controller;
@@ -65,7 +74,7 @@ class _DashboardPageState extends State<DashboardPage>
     controller = AnimationController(
         duration: const Duration(milliseconds: 300), vsync: this);
     animation = ColorTween(
-            begin: Colors.black87, end: Color.fromRGBO(148, 112, 251, 0.2))
+            begin: Color.fromRGBO(148, 112, 251, 0.2), end: Colors.black87)
         .animate(controller)
           ..addListener(() {
             setState(() {
@@ -347,6 +356,72 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
+  // void getFiles() async {
+  //   //asyn function to get list of files
+  //   List<StorageInfo> storageInfo = await PathProviderEx.getStorageInfo();
+  //   var root = storageInfo[0].
+  //       .rootDir; //storageInfo[1] for SD card, geting the root directory
+  //   var fm = FileManager(root: Directory(root)); //
+  //   var files = await fm.filesTree(
+  //       excludedPaths: ["/storage/emulated/0/Android"],
+  //       extensions: ["pdf"] //optional, to filter files, list only pdf files
+  //       );
+  //   setState(() {}); //update the UI
+  // }
+
+  void scanFile() => fetchBooks();
+
+  List<File> bookList = [];
+
+  fetchBooks() async {
+    var rootPath = await getDownloadPath();
+
+    filesInDirectory(Directory(rootPath!));
+    // if (rootPath != null) {
+    //   var docassets = Directory(rootPath)
+    //       .listSync(recursive: false, followLinks: false)
+    //       .where((e) => e is File);
+    //   for (FileSystemEntity asset in docassets) {
+    //     if (asset is File) {
+    //       String name = path.basename(asset.path);
+    //       if (name.endsWith('.pdf') || name.endsWith('.PDF')) {
+    //         File? file = asset.absolute;
+    //         bookList.add(file);
+    //       }
+    //     }
+    //   }
+    // }
+  }
+
+  Future<List<File>> filesInDirectory(Directory dir) async {
+    List<File> files = <File>[];
+    await for (FileSystemEntity entity
+        in dir.list(recursive: false, followLinks: true)) {
+      FileSystemEntityType type = await FileSystemEntity.type(entity.path);
+      if (type == FileSystemEntityType.FILE) {
+        print(entity.path);
+      }
+    }
+    return files;
+  }
+
+  Future<String?> getDownloadPath() async {
+    Directory? directory;
+    try {
+      if (Platform.isIOS) {
+        directory = await getApplicationDocumentsDirectory();
+      } else {
+        directory = Directory('/storage/emulated/0/Download');
+        // Put file in global download folder, if for an unknown reason it didn't exist, we fallback
+        if (!await directory.exists())
+          directory = await getExternalStorageDirectory();
+      }
+    } catch (err, stack) {
+      print("Cannot get download folder path");
+    }
+    return directory?.path;
+  }
+
   void _removeAllItems(DashboardState state) {
     final length = bloc.formKeyList.length;
     for (int i = length - 1; i >= 0; i--) {
@@ -364,14 +439,16 @@ class _DashboardPageState extends State<DashboardPage>
     PopupMenu menu = PopupMenu(
         context: context,
         config: MenuConfig.forList(
-            backgroundColor: Colors.black.withOpacity(0.8),
-            lineColor: Colors.black,
-            itemWidth: 125),
+          backgroundColor: Colors.black.withOpacity(0.8),
+          lineColor: Colors.black,
+          itemWidth: 125,
+        ),
         items: [],
         onClickMenu: (item, index) {
           onClickMenu(item, index, state);
         },
-        index: 0);
+        index: 0,
+        isHorizonal: false);
     isAuthen
         ? menu.items = [
             MenuItem.forList(
@@ -419,7 +496,7 @@ class _DashboardPageState extends State<DashboardPage>
         },
         child: Image.asset(
           state.isNight ? "assets/moon.png" : "assets/sun.png",
-          height: state.isNight ? 96 : 90,
+          height: state.isNight ? 94 : 88,
         ),
       ),
     );
@@ -441,42 +518,112 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget buildTotalFile() {
     return Padding(
-      padding: const EdgeInsets.only(top: 15, bottom: 10),
-      child: Container(
-        height: 80,
-        width: (screenWidth - 50),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-              colors: [
-                Color.fromRGBO(255, 255, 255, 1.0),
-                Color.fromRGBO(255, 255, 255, 1.0),
-              ],
-              begin: const FractionalOffset(0.0, 0.0),
-              end: const FractionalOffset(0.2, 0.9),
-              stops: [0.0, 1.0],
-              tileMode: TileMode.clamp),
-          borderRadius: BorderRadius.all(Radius.circular(15.0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              blurRadius: 5,
-              offset: Offset(3, 5), // Shadow position
-            ),
-          ],
-        ),
-        child: Container(
-          color: Colors.transparent,
-          height: 20,
-          width: (screenWidth - 70),
-          child: Padding(
-              padding: const EdgeInsets.all(2.0),
+      padding:
+          const EdgeInsets.only(top: 15, bottom: 10, left: 25.0, right: 25.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 76,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [
+                      Color.fromRGBO(255, 255, 255, 1.0),
+                      Color.fromRGBO(255, 255, 255, 1.0),
+                    ],
+                    begin: const FractionalOffset(0.0, 0.0),
+                    end: const FractionalOffset(0.2, 0.9),
+                    stops: [0.0, 1.0],
+                    tileMode: TileMode.clamp),
+                borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.3),
+                    blurRadius: 5,
+                    offset: Offset(3, 5), // Shadow position
+                  ),
+                ],
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: buildPieChart(),
-              )),
-        ),
+                  padding: const EdgeInsets.all(10.0), child: buildPieChart()),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 10.0),
+            child: AnimatedSize(
+              curve: Curves.bounceInOut,
+              vsync: this,
+              duration: new Duration(milliseconds: 200),
+              child: InkWell(
+                onTap: () => customModalBottomSheet(context,
+                    isFile: true, isUrl: true, fFile: () {
+                  showMediaSelection(
+                      index: 0,
+                      context: context,
+                      loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.File);
+                  scanFile();
+                }, fUrl: () {}),
+                child: Container(
+                    width: tabController.index == 0 ? 62 : 0,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: Color.fromRGBO(255, 230, 226, 1),
+                      borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.3),
+                          blurRadius: 5,
+                          offset: Offset(3, 5), // Shadow position
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15.0),
+                      child: Image.asset(
+                        "assets/add.png",
+                        // fit: BoxFit.cover,
+                        width: 55,
+                      ),
+                    )),
+              ),
+            ),
+          )
+        ],
       ),
     );
+  }
+
+  Future<void> showMediaSelection({
+    required BuildContext context,
+    required int index,
+    MediaLoaiChucNangDinhKem? loaiChucNangDinhKem,
+  }) async {
+    ImagePicker picker = ImagePicker();
+    switch (loaiChucNangDinhKem!) {
+      case MediaLoaiChucNangDinhKem.Camera:
+        PickedFile? pickedFile =
+            await picker.getImage(source: ImageSource.camera);
+        pathFile = pickedFile?.path ?? '';
+        Navigator.pop(context);
+        break;
+      case MediaLoaiChucNangDinhKem.Album:
+        PickedFile? pickedFile =
+            await picker.getImage(source: ImageSource.gallery);
+        pathFile = pickedFile?.path ?? '';
+        Navigator.pop(context);
+        break;
+      case MediaLoaiChucNangDinhKem.File:
+        FilePickerResult? file = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          allowMultiple: false,
+        );
+        pathFile = file?.paths.first ?? "";
+        Navigator.pop(context);
+        break;
+      case MediaLoaiChucNangDinhKem.Video:
+        break;
+    }
   }
 
   ListView buildListViewPublish(DashboardState state) {
@@ -486,20 +633,20 @@ class _DashboardPageState extends State<DashboardPage>
         itemCount: bloc.formKeyList.length,
         itemBuilder: (context, index) {
           return InkWell(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              var linkResult = await Navigator.push(
                 context,
                 MaterialPageRoute(
                     builder: (context) => ViewFileMain(
-                          isNightMode: false,
-                          //state.isNight,
-                          fileKyTen:
-                              'https://www.au-sonpo.co.jp/corporate/upload/article/89/article_89_1.pdf',
+                          isNightMode: state.isNight,
+                          fileKyTen: index / 2 == 0
+                              ? 'https://example-files.online-convert.com/document/pdf/example.pdf'
+                              //'https://research.nhm.org/pdfs/10840/10840-001.pdf'
+                              : "https://www.adobe.com/support/products/enterprise/knowledgecenter/media/c4611_sample_explain.pdf",
                           isKySo: true,
                           isUseMauChuKy: true,
                         )),
               );
-              //ViewFileMain
             },
             child: AnimationConfiguration.synchronized(
               duration: Duration(milliseconds: 1000),
@@ -604,7 +751,7 @@ class _DashboardPageState extends State<DashboardPage>
                                         child: Padding(
                                           padding: const EdgeInsets.all(5.0),
                                           child: Image.asset(
-                                            "assets/pdf-file.png",
+                                            "assets/file-format.png",
                                             height: 50,
                                           ),
                                         ),
@@ -866,89 +1013,87 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget buildPieChart() {
-    double? percent;
+    // double? percent;
 
-    Map<String, double> dataMapMDHL = {
-      "phanTram": percent ?? 20,
-      "100": 100 - (percent ?? 0),
-    };
+    // Map<String, double> dataMapMDHL = {
+    //   "phanTram": percent ?? 20,
+    //   "100": 100 - (percent ?? 0),
+    // };
 
-    List<Color> listColor = [
-      Colors.green,
-      Colors.red[700]!,
-    ];
-    return Container(
-      child: Row(
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Image.asset(
-                "assets/folder.png",
-                height: 55,
-              ),
-              tabController.index == 1
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 5.0, right: 3.0),
-                      child: Image.asset(
-                        "assets/bubble-chat.png",
-                        height: 22,
+    // List<Color> listColor = [
+    //   Colors.green,
+    //   Colors.red[700]!,
+    // ];
+    return Row(
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Image.asset(
+              "assets/folder.png",
+              height: 55,
+            ),
+            tabController.index == 1
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 7.0, right: 3.0),
+                    child: Image.asset(
+                      "assets/document-reader.png",
+                      height: 24,
+                    ),
+                  )
+                : SizedBox()
+          ],
+        ),
+        Expanded(
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0, top: 8.0),
+                      child: Text(
+                        tabController.index == 0
+                            ? '${bloc.formKeyList.length} files'
+                            : '${bloc.formKeyList.length} private files',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color.fromRGBO(118, 71, 248, 1.0)),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0, top: 1.0),
+                      child: Text(
+                        'Free Space',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey[400]),
                       ),
                     )
-                  : SizedBox()
-            ],
-          ),
-          Expanded(
-              child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0, top: 8.0),
-                        child: Text(
-                          tabController.index == 0
-                              ? '${bloc.formKeyList.length} files'
-                              : '${bloc.formKeyList.length} private files',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Color.fromRGBO(118, 71, 248, 1.0)),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8.0, top: 1.0),
-                        child: Text(
-                          'Free Space',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[400]),
-                        ),
-                      )
-                    ],
-                  ),
-                  Spacer(),
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.only(top: 4.0),
-                child: new LinearPercentIndicator(
-                  animation: true,
-                  lineHeight: 08.0,
-                  animationDuration: 2000,
-                  percent: 0.5,
-                  linearStrokeCap: LinearStrokeCap.roundAll,
-                  progressColor: Colors.greenAccent,
+                  ],
                 ),
+                Spacer(),
+              ],
+            ),
+            Padding(
+              padding: EdgeInsets.only(top: 4.0),
+              child: new LinearPercentIndicator(
+                animation: true,
+                lineHeight: 08.0,
+                animationDuration: 2000,
+                percent: 0.5,
+                linearStrokeCap: LinearStrokeCap.roundAll,
+                progressColor: Colors.greenAccent,
               ),
-            ],
-          ))
-        ],
-      ),
+            ),
+          ],
+        ))
+      ],
     );
   }
 

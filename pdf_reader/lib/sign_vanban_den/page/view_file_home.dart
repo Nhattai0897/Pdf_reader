@@ -15,19 +15,18 @@ import 'package:flutter_fullpdfview/flutter_fullpdfview.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:painter/painter.dart';
 import 'package:pdf_reader/sign_vanban_den/bloc/view_file_bloc.dart';
-import 'package:pdf_reader/sign_vanban_den/model/loai_hien_thi_model.dart';
-import 'package:pdf_reader/sign_vanban_den/model/loai_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/frame_custom_support.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/modal_bottom_sheet_select_file.dart';
-import 'package:pdf_reader/sign_vanban_den/widget/no_data_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
 import 'package:pdf_reader/utils/bloc_builder_status.dart';
+import 'package:pdf_reader/utils/networks.dart';
+import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart';
 import 'dart:ui' as ui;
-import 'package:showcaseview/showcaseview.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class ViewFileMain extends StatefulWidget {
   String fileKyTen;
@@ -118,7 +117,7 @@ class ViewFileHome extends StatefulWidget {
 
 class _ViewFileHomeState extends State<ViewFileHome>
     with TickerProviderStateMixin {
-  GlobalKey _globalKey = new GlobalKey();
+  GlobalKey _globalKeyDraw = new GlobalKey();
   GlobalKey _globalKeyTextField = new GlobalKey();
   GlobalKey _globalKeySign = new GlobalKey();
   final GlobalKey _containerFakePDFViewKey = GlobalKey();
@@ -128,15 +127,10 @@ class _ViewFileHomeState extends State<ViewFileHome>
   double ratioParam = 0.0;
   bool _isLoading = true;
   bool isReady = false;
-  bool isThemButPhe = false;
-  bool? isShow;
   String pathFile = '';
   String pathPDF = "";
   String? _linkResult;
-  String soTrang = '';
-  String viTri = '';
   String noiDungButPhe = '';
-  bool isViTriMacDinh = false;
   Offset offset = Offset.zero;
   double dxFrame = 0.0;
   double dyFrame = 0.0;
@@ -155,33 +149,36 @@ class _ViewFileHomeState extends State<ViewFileHome>
   double screenWidth = 0.0;
   double screenHeight = 0.0;
   double paddingTop = 0.0;
-  int pages = 0;
   int countBack = 0;
+  int pages = 0;
+  int pageIndexTemp = 0;
   int pageIndex = 0;
-  int loaiHienThi = 0;
   double finalPageHeight = 0.0;
   double finalPageWidth = 0.0;
   double firstPageHeight = 0.0;
   double firstPageWidth = 0.0;
-  List<LoaiHienThiList> loaiHienThiList = [];
-  List<LoaiKySoModel> loaiKySoList = [];
-  MauChuKySoModel selectedMauChuKy =
-      MauChuKySoModel(tenMauChuKy: "Danh sách chữ ký");
-  BuildContext? myContext;
+  DateTime datetime = DateTime.now();
+  var tempDir;
+  String? tempPath;
+  String _chars =
+      'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz1234567890';
   TextEditingController noiDungButPheController = TextEditingController();
   bool isUseSignTemp = false;
   bool isLoadFileSuccess = false;
   bool isNightMode = false;
   bool isEdit = false;
+  late GlobalObjectKey<FormState> formKeyList;
   PainterController _controllerSign = _newControllerSign();
   static PainterController _newControllerSign() {
     PainterController controller = new PainterController();
     controller.thickness = 4.0;
     controller.drawColor = Colors.black.withOpacity(0.7);
-    controller.backgroundColor = Colors.blue.withOpacity(0.1);
+    controller.backgroundColor = Colors.transparent;
     return controller;
   }
 
+  String getRandomString(int length) => String.fromCharCodes(Iterable.generate(
+      length, (_) => _chars.codeUnitAt(random.nextInt(_chars.length))));
   PainterController _controllerDraw = _newControllerDraw();
   static PainterController _newControllerDraw() {
     PainterController controller = new PainterController();
@@ -201,6 +198,9 @@ class _ViewFileHomeState extends State<ViewFileHome>
   void dispose() {
     super.dispose();
     bloc.closeStream();
+    _controllerSign.dispose();
+    _controllerDraw.dispose();
+    noiDungButPheController.dispose();
   }
 
   @override
@@ -231,13 +231,14 @@ class _ViewFileHomeState extends State<ViewFileHome>
     maxHeightSize = screenHeight *
         0.2; // dùng cho giới hạn kéo to hay thu nhỏ widget chữ ký
     minWidthSize =
-        screenWidth / 5.0; // dùng cho giới hạn kéo to hay thu nhỏ widget chữ ký
+        screenWidth / 8.0; // dùng cho giới hạn kéo to hay thu nhỏ widget chữ ký
     maxWidthSize =
         screenWidth / 1.8; // dùng cho giới hạn kéo to hay thu nhỏ widget chữ ký
     finalPageWidth = screenWidth;
     finalPageHeight = screenWidth;
     firstPageWidth = screenWidth;
     firstPageHeight = screenHeight;
+    formKeyList = GlobalObjectKey<FormState>(1);
   }
 
   Widget buildContentKySo(
@@ -256,8 +257,13 @@ class _ViewFileHomeState extends State<ViewFileHome>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       IconButton(
-                          onPressed: () =>
-                              Navigator.pop(maincontext, _linkResult),
+                          onPressed: () {
+                            if (countBack != 0) {
+                              Navigator.pop(maincontext, _linkResult);
+                            } else {
+                              Navigator.pop(maincontext, widget.fileKyTen);
+                            }
+                          },
                           icon:
                               Icon(Icons.arrow_back_ios, color: Colors.white)),
                       Padding(
@@ -284,38 +290,78 @@ class _ViewFileHomeState extends State<ViewFileHome>
                       builder: (context, snapshot) {
                         var isShowError = snapshot.data ?? false;
                         return Center(
-                            child: Row(
+                            child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             isShowError
-                                ? SizedBox()
-                                : CircularProgressIndicator(),
-                            SizedBox(width: 15),
+                                ? Image.asset('assets/blocked.png', width: 65)
+                                : isEdit
+                                    ? Image.asset(
+                                        'assets/progress_save.gif',
+                                        width: 100,
+                                      )
+                                    : Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 15.0),
+                                        child: Image.asset('assets/loading.gif',
+                                            width: 85)),
+                            SizedBox(height: 10),
                             Text(isShowError
                                 ? "Unable to load document!"
-                                : "Document loading...")
+                                : isEdit
+                                    ? "Document saving..."
+                                    : "Document loading...")
                           ],
                         ));
                       })
-                  : FutureBuilder<PDFViewController>(
-                      future: _controller.future,
-                      builder:
-                          (context, AsyncSnapshot<PDFViewController> snapshot) {
-                        if (snapshot.hasData && state.countPage == 0)
-                          getCountPage(snapshot);
-                        double width = 0.0;
-                        double height = 0.0;
-                        networkCall(snapshot, width, height, maincontext);
-                        return Stack(children: [
-                          buildPdfView(_controller, snapshot),
-                          buildDragParent(
-                              networkCall(snapshot, width, height, maincontext),
-                              state.isDraw),
-                          buildSignParent(
-                              context, state.isShowSign, snapshot, state)
-                        ]);
-                      },
+                  : Stack(
+                      children: [
+                        FutureBuilder<PDFViewController>(
+                          future: _controller.future,
+                          builder: (context,
+                              AsyncSnapshot<PDFViewController> snapshot) {
+                            if (snapshot.hasData && state.countPage == 0)
+                              getCountPage(snapshot);
+                            double width = 0.0;
+                            double height = 0.0;
+                            networkCall(snapshot, width, height, maincontext);
+                            return Stack(children: [
+                              buildPdfView(_controller, snapshot),
+                              buildDragParent(
+                                  networkCall(
+                                      snapshot, width, height, maincontext),
+                                  state.isDraw),
+                              buildSignParent(
+                                  context, state.isShowSign, snapshot, state)
+                            ]);
+                          },
+                        ),
+                        StreamBuilder<bool>(
+                            stream: bloc.streamLoadingDraw,
+                            builder: (context, snapshot) {
+                              var isLoadingDraw = snapshot.data ?? false;
+                              return Visibility(
+                                visible: isLoadingDraw,
+                                maintainState: true,
+                                child: Container(
+                                  color: Colors.white,
+                                  child: Center(
+                                      child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset('assets/progress_save.gif',
+                                          width: 100),
+                                      SizedBox(height: 10),
+                                      Text("Document saving...")
+                                    ],
+                                  )),
+                                ),
+                              );
+                            })
+                      ],
                     )),
         ],
       );
@@ -351,17 +397,18 @@ class _ViewFileHomeState extends State<ViewFileHome>
               visible: result,
               child: Container(
                 color: Colors.transparent,
-
-                /// Container dùng để chặn scroll 2 đầu bên ngoài frame limit
+                // Container dùng để chặn scroll 2 đầu bên ngoài frame limit
                 height: screenHeight,
                 child: Center(
                   child: Container(
                     color: Colors.transparent,
                     key: _containerFakePDFViewKey,
                     width: builder.data?.elementAt(0) ?? 0.0,
-                    height: builder.data?.elementAt(1) ?? 0.0,
+                    height: builder.data?.elementAt(1) ?? 50.0,
                     child: isDraw ?? false
-                        ? new Painter(_controllerDraw)
+                        ? RepaintBoundary(
+                            key: _globalKeyDraw,
+                            child: new Painter(_controllerDraw))
                         : ResizebleWidget(
                             onDrag: (y, x, width, height) {
                               dyFrame = y;
@@ -413,7 +460,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
             Padding(
               padding: EdgeInsets.only(top: screenHeight / 9),
               child: Container(
-                width: screenWidth - 30,
+                width: screenWidth - 45,
                 decoration: BoxDecoration(
                   boxShadow: [
                     BoxShadow(
@@ -431,8 +478,12 @@ class _ViewFileHomeState extends State<ViewFileHome>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(top: 8.30, bottom: 5.0),
-                      child: Text("Chữ ký"),
+                      padding: const EdgeInsets.only(top: 10, bottom: 5.0),
+                      child: Text(
+                        "Signature",
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15),
+                      ),
                     ),
                     buildSignFrame(context),
                     Row(
@@ -496,7 +547,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                               },
                               child: Container(
                                 height: 40,
-                                width: 150,
+                                width: screenWidth / 2.5,
                                 decoration: BoxDecoration(
                                   boxShadow: [
                                     BoxShadow(
@@ -523,7 +574,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                 onTap: () => bloc.showSignFrame(false),
                                 child: Container(
                                   height: 40,
-                                  width: 150,
+                                  width: screenWidth / 2.5,
                                   decoration: BoxDecoration(
                                     boxShadow: [
                                       BoxShadow(
@@ -571,8 +622,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
         pageFling: true,
         displayAsBook: true,
         pageSnap: true,
-        backgroundColor: bgcolors.WHITE,
-        //widget.isNightMode ? bgcolors.BLACK : bgcolors.WHITE,
+        backgroundColor: widget.isNightMode ? bgcolors.BLACK : bgcolors.WHITE,
         nightMode: widget.isNightMode,
         onRender: (_pages) async {
           setState(() {
@@ -580,9 +630,18 @@ class _ViewFileHomeState extends State<ViewFileHome>
             isReady = true;
           });
           if (snapshotPDF.hasData) {
-            await snapshotPDF.data!.setPageWithAnimation(_pages);
-            await Future.delayed(Duration(milliseconds: 50));
-            await snapshotPDF.data!.setPageWithAnimation(0);
+            if (pathFile != '') {
+              await snapshotPDF.data!.setPageWithAnimation(pageIndexTemp);
+              //await snapshotPDF.data!.resetZoom(1);
+            } else {
+              if (_pages == 1 || _pages == 2) {
+                await snapshotPDF.data!.setZoom(1.07);
+              } else {
+                await snapshotPDF.data!.setPageWithAnimation(_pages);
+                await Future.delayed(Duration(milliseconds: 50));
+                await snapshotPDF.data!.setPageWithAnimation(0);
+              }
+            }
           }
         },
         onViewCreated: (PDFViewController pdfViewController) =>
@@ -593,33 +652,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
           bloc.setCountCurrentPage(currentPage: page);
         });
   }
-
-  /// Widget này dùng khi chỉ có 1 mẫu chữ ký(cá nhân) navigate qua trực tiếp k show lên trong popup nên k cap widget dc, cho nên đem qua đây show lên r cap widget và show
-  // Stack buildMCKTemp(ViewFileState state) {
-  //   return Stack(
-  //     children: [
-  //       Container(
-  //         child: Column(
-  //           children: [
-  //             Padding(
-  //               padding: const EdgeInsets.only(
-  //                   top: 5.0, left: 15.0, right: 15.0, bottom: 5.0),
-  //               child: RepaintBoundary(
-  //                   key: _globalKey,
-  //                   child: state.mauChuKy ?? NoDataScreen(isVisible: true)),
-  //             ),
-  //             Spacer()
-  //           ],
-  //         ),
-  //       ),
-  //       Container(
-  //         width: double.infinity,
-  //         height: double.infinity,
-  //         color: Colors.black,
-  //       )
-  //     ],
-  //   );
-  // }
 
   FutureBuilder buildHeaderPDF(
       Completer<PDFViewController> _controller, ViewFileState state) {
@@ -637,16 +669,56 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                 BorderRadius.all(Radius.circular(5.0))),
                         child: Padding(
                             padding: const EdgeInsets.all(5.0),
-                            child: buildHeaderCase(
-                                state.typeEditCase, maincontext, snapshotPDF)),
+                            child: buildHeaderCase(state.typeEditCase,
+                                maincontext, snapshotPDF, state)),
                       ))
                   : Row(
                       children: [
+                        Visibility(
+                          visible: countBack != 0,
+                          maintainState: true,
+                          child: InkWell(
+                              onTap: (() => ahowDialogUndo(context)),
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 15),
+                                child: Stack(
+                                  alignment: AlignmentDirectional.bottomStart,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 4),
+                                      child: Image.asset(
+                                        "assets/back.png",
+                                        height: 27,
+                                      ),
+                                    ),
+                                    Text(
+                                      "All",
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold),
+                                    )
+                                  ],
+                                ),
+                              )),
+                        ),
                         InkWell(
-                            onTap: () {
+                            key: formKeyList,
+                            onTap: () => optionMenu(
+                                formKeyList, state.countPage ?? 0, snapshotPDF),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 15),
+                              child: Image.asset(
+                                "assets/next.png",
+                                height: 31,
+                              ),
+                            )),
+                        InkWell(
+                            onTap: () async {
                               setState(() {
                                 isEdit = true;
                               });
+                              await snapshotPDF.data!.resetZoom(1);
                             },
                             child: Padding(
                               padding: const EdgeInsets.only(right: 15),
@@ -662,11 +734,192 @@ class _ViewFileHomeState extends State<ViewFileHome>
         });
   }
 
-  Widget buildHeaderCase(TypeEditCase? editCase, maincontext, snapshotPDF) {
+  void ahowDialogUndo(contextGobal) {
+    showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.0)), //this right here
+            child: Container(
+              height: screenHeight / 3.8,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                      child: Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 10),
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Image.asset(
+                            "assets/file-2.png",
+                            width: 83,
+                          ),
+                        ),
+                        Image.asset(
+                          "assets/undo.png",
+                          width: 28,
+                        )
+                      ],
+                    ),
+                  )),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: DefaultTextStyle.of(context).style,
+                        children: <TextSpan>[
+                          TextSpan(
+                              text: 'Are you sure you want to',
+                              style: TextStyle(
+                                  decoration: TextDecoration.none,
+                                  fontSize: 11,
+                                  color: Colors.black)),
+                          TextSpan(
+                              text: ' undo all ',
+                              style: TextStyle(
+                                  decoration: TextDecoration.none,
+                                  fontSize: 11,
+                                  color: Colors.red)),
+                          TextSpan(
+                              text: 'edits?',
+                              style: TextStyle(
+                                  decoration: TextDecoration.none,
+                                  fontSize: 11,
+                                  color: Colors.black))
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: screenWidth / 3.3,
+                          child: RaisedButton(
+                            onPressed: () {
+                              iniStateFnc();
+                              setState(() {
+                                countBack = 0;
+                              });
+                              Navigator.pop(context);
+                            },
+                            child: Text(
+                              "Sure",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            color: Color.fromRGBO(220, 73, 85, 1),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 15),
+                          child: SizedBox(
+                            width: screenWidth / 3.3,
+                            child: RaisedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                "Cancel",
+                                style: TextStyle(color: Colors.black),
+                              ),
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
+          );
+        });
+  }
+
+  void optionMenu(GlobalKey<State<StatefulWidget>> btnKey, int countPage,
+      AsyncSnapshot<PDFViewController> snapshotPDF) {
+    List<MenuItem> listPDF = [];
+    for (var i = 0; i < countPage; i++) {
+      listPDF.add(MenuItem.forList(
+        title: i.toString(),
+      ));
+    }
+    PopupMenu menu = PopupMenu(
+        context: context,
+        config: MenuConfig.forList(
+            backgroundColor: Colors.black.withOpacity(0.8),
+            lineColor: Colors.white,
+            itemWidth: 33),
+        items: listPDF,
+        onClickMenu: (item, index) => onClickMenu(item, snapshotPDF),
+        index: pageIndex,
+        isHorizonal: true);
+    menu.show(widgetKey: btnKey);
+  }
+
+  Future<void> onClickMenu(MenuItemProvider item,
+      AsyncSnapshot<PDFViewController> snapshotPDF) async {
+    await snapshotPDF.data!.setPageWithAnimation(int.parse(item.menuTitle));
+    pageIndex = int.parse(item.menuTitle);
+  }
+
+  Widget buildHeaderCase(
+      TypeEditCase? editCase, maincontext, snapshotPDF, ViewFileState state) {
     Widget widget = SizedBox();
     switch (editCase) {
       case TypeEditCase.image:
         widget = Row(children: [
+          InkWell(
+            onTap: () => editPDF(
+                pathFileLocal: pathPDF, snapshotPDF: snapshotPDF, state: state),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: InkWell(
+                child: Image.asset(
+                  "assets/save.png",
+                  height: 25,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15.0),
+            child: InkWell(
+              onTap: () => customModalBottomSheet(maincontext,
+                  isAlbum: true,
+                  isChupHinh: true,
+                  isFile: false, fChupHinh: () async {
+                await showMediaSelection(
+                    index: 0,
+                    context: maincontext,
+                    loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Camera);
+                if (pathFile.isNotEmpty) {
+                  bloc.pushIndexCalculator(true);
+                  bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
+                }
+              }, fAlbum: () async {
+                await showMediaSelection(
+                    index: 0,
+                    context: maincontext,
+                    loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Album);
+                if (pathFile.isNotEmpty) {
+                  bloc.pushIndexCalculator(true);
+                  bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
+                }
+              }),
+              child: Image.asset(
+                "assets/replace.png",
+                height: 25,
+              ),
+            ),
+          ),
           InkWell(
             onTap: () {
               bloc.emitTypeWidget(typeEditCase: TypeEditCase.all);
@@ -688,6 +941,29 @@ class _ViewFileHomeState extends State<ViewFileHome>
       case TypeEditCase.text:
         widget = Row(children: [
           InkWell(
+            onTap: () => editPDF(
+                pathFileLocal: pathPDF, snapshotPDF: snapshotPDF, state: state),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: InkWell(
+                child: Image.asset(
+                  "assets/save.png",
+                  height: 25,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15.0),
+            child: InkWell(
+              onTap: () => modalBottomSheetTextField(maincontext, snapshotPDF),
+              child: Image.asset(
+                "assets/rename.png",
+                height: 27,
+              ),
+            ),
+          ),
+          InkWell(
             onTap: () {
               bloc.emitTypeWidget(typeEditCase: TypeEditCase.all);
               setState(() {
@@ -708,6 +984,29 @@ class _ViewFileHomeState extends State<ViewFileHome>
       case TypeEditCase.sign:
         widget = Row(children: [
           InkWell(
+            onTap: () => editPDF(
+                pathFileLocal: pathPDF, snapshotPDF: snapshotPDF, state: state),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: InkWell(
+                child: Image.asset(
+                  "assets/save.png",
+                  height: 25,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15.0),
+            child: InkWell(
+              onTap: () => bloc.showSignFrame(true),
+              child: Image.asset(
+                "assets/digital-signature.png",
+                height: 27,
+              ),
+            ),
+          ),
+          InkWell(
             onTap: () {
               bloc.emitTypeWidget(typeEditCase: TypeEditCase.all);
               setState(() {
@@ -727,8 +1026,34 @@ class _ViewFileHomeState extends State<ViewFileHome>
         break;
       case TypeEditCase.draw:
         widget = Row(children: [
+          InkWell(
+            onTap: () async {
+              bloc.pushDownLoadDraw(true);
+              var fileConvert = await _capturePngDraw();
+              if (fileConvert != null) {
+                pathFile = fileConvert.path;
+                editPDF(
+                    pathFileLocal: pathPDF,
+                    snapshotPDF: snapshotPDF,
+                    state: state);
+              } else {
+                bloc.warningButPhe(
+                    title: "Edit fail, try again!",
+                    loaiThongBao: LoaiThongBao.thatBai);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: InkWell(
+                child: Image.asset(
+                  "assets/save.png",
+                  height: 25,
+                ),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.only(left: 5),
+            padding: const EdgeInsets.only(left: 10),
             child: ColorPickerButton(
                 controller: _controllerDraw, background: false, opacity: 0.7),
           ),
@@ -776,30 +1101,28 @@ class _ViewFileHomeState extends State<ViewFileHome>
       default:
         widget = Row(children: [
           InkWell(
-            onTap: () {
-              customModalBottomSheet(maincontext,
-                  isAlbum: true,
-                  isChupHinh: true,
-                  isFile: false, fChupHinh: () async {
-                await showMediaSelection(
-                    index: 0,
-                    context: maincontext,
-                    loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Camera);
-                if (pathFile.isNotEmpty) {
-                  bloc.pushIndexCalculator(true);
-                  // bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
-                }
-              }, fAlbum: () async {
-                await showMediaSelection(
-                    index: 0,
-                    context: maincontext,
-                    loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Album);
-                if (pathFile.isNotEmpty) {
-                  bloc.pushIndexCalculator(true);
-                  //bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
-                }
-              });
-            },
+            onTap: () => customModalBottomSheet(maincontext,
+                isAlbum: true,
+                isChupHinh: true,
+                isFile: false, fChupHinh: () async {
+              await showMediaSelection(
+                  index: 0,
+                  context: maincontext,
+                  loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Camera);
+              if (pathFile.isNotEmpty) {
+                bloc.pushIndexCalculator(true);
+                bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
+              }
+            }, fAlbum: () async {
+              await showMediaSelection(
+                  index: 0,
+                  context: maincontext,
+                  loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.Album);
+              if (pathFile.isNotEmpty) {
+                bloc.pushIndexCalculator(true);
+                bloc.emitTypeWidget(typeEditCase: TypeEditCase.image);
+              }
+            }),
             child: Image.asset(
               "assets/gallery.png",
               height: 25,
@@ -837,15 +1160,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
             ),
           ),
           InkWell(
-            onTap: () {
-              setState(() {
-                isEdit = false;
-              });
-              bloc.pushIndexCalculator(false);
-              _controllerSign.clear();
-              _controllerDraw.clear();
-              noiDungButPheController.clear();
-            },
+            onTap: () => closeEdit(),
             child: Image.asset(
               "assets/cancel.png",
               height: 25,
@@ -857,14 +1172,25 @@ class _ViewFileHomeState extends State<ViewFileHome>
     return widget;
   }
 
+  void closeEdit() {
+    bloc.emitTypeWidget(typeEditCase: TypeEditCase.all);
+    cancelChonViTriKy();
+    setState(() {
+      isEdit = false;
+    });
+    bloc.pushIndexCalculator(false);
+    bloc.showDrawFrame(false);
+    _controllerSign.clear();
+    _controllerDraw.clear();
+    noiDungButPheController.clear();
+  }
+
   Future<void> showMediaSelection({
     required BuildContext context,
     required int index,
     MediaLoaiChucNangDinhKem? loaiChucNangDinhKem,
   }) async {
-    Uint8List? imageUint8List;
     ImagePicker picker = ImagePicker();
-
     switch (loaiChucNangDinhKem!) {
       case MediaLoaiChucNangDinhKem.Camera:
         PickedFile? pickedFile =
@@ -878,11 +1204,9 @@ class _ViewFileHomeState extends State<ViewFileHome>
             await picker.getImage(source: ImageSource.gallery);
         pathFile = pickedFile?.path ?? '';
         Navigator.pop(context);
-        //  print('pathFile 123: $pathFile');
         break;
       case MediaLoaiChucNangDinhKem.File:
         // File file = await FilePicker.getFile();
-        // pathFile = file.path;
         FilePickerResult? file = await FilePicker.platform.pickFiles(
           type: FileType.custom,
           allowedExtensions: ['pdf', 'doc', 'xlsx', 'docx'],
@@ -890,10 +1214,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
         );
         pathFile = file!.paths.first!;
         Navigator.pop(context);
-        // print('pathFile 123: $pathFile');
         break;
       case MediaLoaiChucNangDinhKem.Video:
-        // TODO: Handle this case.
         break;
     }
   }
@@ -904,46 +1226,26 @@ class _ViewFileHomeState extends State<ViewFileHome>
     dyFrame = 0.0;
   }
 
-  // FutureBuilder buildThemButPhe(
-  //     bool isShowError,
-  //     AsyncSnapshot<PDFViewController> snapshotPDF,
-  //     ViewFileState state,
-  //     Completer<PDFViewController> _controller) {
-  //   return FutureBuilder<PDFViewController>(
-  //       future: _controller.future,
-  //       builder: (maincontext, AsyncSnapshot<PDFViewController> snapshotPDF) {
-  //         return RaisedButton(
-  //           color: !isShowError ? Colors.grey[200] : Colors.red,
-  //           shape:
-  //               RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-  //           onPressed: () =>
-  //               modalBottomSheetTextField(maincontext, snapshotPDF),
-  //           child: Text("Thêm bút phê"),
-  //         );
-  //       });
-  // }
-
-  // Future<List<int>> readData(String name) async {
-  //   final ByteData data = await rootBundle.load(ConfigImages.fontLink!);
-  //   return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-  // }
-
   void iniStateFnc() {
-    // loaiHienThiList = LoaiHienThiList.loaiHienThiList(context);
-    // loaiKySoList = LoaiKySoModel.listLoaiChuKyModel(context);
     random = new Random();
     bloc = BlocProvider.of<ViewFileBloc>(context);
-    // bloc.setUpListLoaiHienThi(loaiHienThiList);
-    //  bloc.initListCKTemp(listTypeNew: loaiKySoList);
     bloc.initContext(context, widget.fileKyTen.toString());
     bloc.initLoading(context);
     if (widget.isUseMauChuKy == true && widget.fileImgMauChuKy != null) {
       bloc.emitFileWidget(fileImageWidget: widget.fileImgMauChuKy!);
     }
+    WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      tempPath = await FileLocalResponse().getPathLocal(
+        ePathType: EPathType.Storage,
+        configPathStr: 'pdffolder',
+      );
+      tempDir = await getTemporaryDirectory();
+    });
+
     //Test
     // noiDungButPheController.text =
-    //   'Căn cứ Quyết định số 678/QĐ-BNV ngày 27/8/2019 của Bộ trưởng Bộ Nội vụ ban hành Quy chế phát ngôn và cung cấp thông tin cho báo chí của Bộ Nội vụ;';
-    bloc.getChuKyImage();
+    //     'Căn cứ Quyết định số 678/QĐ-BNV ngày 27/8/2019 của Bộ trưởng Bộ Nội vụ ban hành Quy chế phát ngôn và cung cấp thông tin cho báo chí của Bộ Nội vụ;';
+
     if (widget.isKySo == false) {
       // if (widget.fileKyTen.contains('www')) {
       //   //Online
@@ -963,103 +1265,89 @@ class _ViewFileHomeState extends State<ViewFileHome>
     }
   }
 
-  // Future<bool> editPDF(
-  //     {required String pathFileLocal,
-  //     required String noiDung,
-  //     required AsyncSnapshot<PDFViewController> snapshotPDF,
-  //     required ViewFileState state}) async {
-  //   try {
-  //     //Load the existing PDF document.
-  //     final PdfDocument document =
-  //         PdfDocument(inputBytes: File(pathFileLocal).readAsBytesSync());
-  //     //Get the existing PDF page.
-  //     final PdfPage page = document.pages[pageIndex];
-  //     // final List<int> fontData = await _readData('Sarabun-Regular.ttf');
-  //     // final File? imgTextField = await _capturePngTextField();
-  //     double dx = 0.0;
-  //     double dy = 0.0;
-  //     double widthFrame = 0.0;
-  //     double heightFrame = 0.0;
-  //     if (snapshotPDF.hasData) {
-  //       final dataPDF = snapshotPDF.data!;
-  //       final currentPage = await dataPDF.getCurrentPage() ?? 0;
-  //       final widthPage = await dataPDF.getPageWidth(currentPage) ?? 0.0;
-  //       final heightPage = await dataPDF.getPageHeight(currentPage) ?? 0.0;
+  Future<String?> editPDF(
+      {required String pathFileLocal,
+      required AsyncSnapshot<PDFViewController> snapshotPDF,
+      required ViewFileState state}) async {
+    try {
+      pageIndexTemp = pageIndex;
+      //Load the existing PDF document.
+      final PdfDocument document =
+          PdfDocument(inputBytes: File(pathFileLocal).readAsBytesSync());
+      //Get the existing PDF page.
+      final PdfPage page = document.pages[pageIndex];
+      // final List<int> fontData = await _readData('Sarabun-Regular.ttf');
+      // final File? imgTextField = await _capturePngTextField();
+      double dx = 0.0;
+      double dy = 0.0;
+      if (snapshotPDF.hasData) {
+        final dataPDF = snapshotPDF.data!;
+        //final currentPage = await dataPDF.getCurrentPage() ?? 0;
+        final widthPage = await dataPDF.getPageWidth(pageIndex) ?? 0.0;
+        final heightPage = await dataPDF.getPageHeight(pageIndex) ?? 0.0;
+        final widthPDFCanvas = page.size.width;
+        final heightPDFCanvas = page.size.height;
+        final widthPDFForScreen = MediaQuery.of(context).size.width;
+        final heightPDFForScreen = (widthPDFForScreen * heightPage) / widthPage;
+        final ratioWidthCanvas = widthPDFCanvas / widthPDFForScreen;
+        final ratioHeightCanvas = heightPDFCanvas / heightPDFForScreen;
+        widthFrame = this.widthFrame * ratioWidthCanvas;
+        heightFrame = this.heightFrame * ratioHeightCanvas;
+        dx = dxFrame * ratioWidthCanvas;
+        dy = dyFrame * ratioHeightCanvas;
 
-  //       final widthPDFCanvas = page.size.width;
-  //       final heightPDFCanvas = page.size.height;
-  //       final widthPDFForScreen = MediaQuery.of(context).size.width;
-  //       final heightPDFForScreen = (widthPDFForScreen * heightPage) / widthPage;
-  //       final ratioWidthCanvas = widthPDFCanvas / widthPDFForScreen;
-  //       final ratioHeightCanvas = heightPDFCanvas / heightPDFForScreen;
-  //       widthFrame = this.widthFrame * ratioWidthCanvas;
-  //       heightFrame = this.heightFrame * ratioHeightCanvas;
-  //       dx = dxFrame * ratioWidthCanvas;
-  //       dy = dyFrame * ratioHeightCanvas;
-  //       // final containerFakePDFViewKeyContext =
-  //       //     _containerFakePDFViewKey.currentContext;
-  //       // if (containerFakePDFViewKeyContext != null) {
-  //       //   final box =
-  //       //       containerFakePDFViewKeyContext.findRenderObject() as RenderBox;
-  //       //   final pos = box.localToGlobal(Offset.zero);
-  //       //   print("pos.dy => ${pos.dy}");
-  //       // }
-  //     }
-  //     page.graphics.drawImage(
-  //         PdfBitmap(state.fileImageWidget!.readAsBytesSync()),
-  //         Rect.fromLTWH(dx, dy, widthFrame, heightFrame));
-  //     // page.graphics.drawString(noiDung, PdfTrueTypeFont(fontData, 11.0),
-  //     //     brush: PdfSolidBrush(PdfColor(0, 0, 0)),
-  //     //     bounds: Rect.fromLTWH(dx, dy, widthFrame, heightFrame));
+        //Draw the image
+        page.graphics.drawImage(
+            PdfBitmap(File(pathFile).readAsBytesSync()),
+            Rect.fromLTWH(
+                state.typeEditCase == TypeEditCase.draw ? 0.0 : dx,
+                state.typeEditCase == TypeEditCase.draw ? 0.0 : dy,
+                state.typeEditCase == TypeEditCase.draw
+                    ? widthPDFCanvas
+                    : widthFrame,
+                state.typeEditCase == TypeEditCase.draw
+                    ? heightPDFCanvas
+                    : heightFrame));
 
-  //     //Save the document.
-  //     String? tempPath = await FileLocalResponse().getPathLocal(
-  //       ePathType: EPathType.Storage,
-  //       configPathStr: 'vanban',
-  //     );
-  //     //var tenFile = widget.fileKyTen.replaceAll('.pdf', '');
-  //     //String fileName = '$tenFile.pdf';
-  //     var linkResult = "$tempPath${widget.fileKyTen}";
-  //     pathFile = linkResult;
-  //     File(pathFile).writeAsBytes(document.save());
-  //     // setState(() => _isLoading = true);
-  //     // await Future.delayed(Duration(seconds: 1));
-  //     // loadDocument(linkResult);
-  //     // await Future.delayed(Duration(seconds: 1));
-  //     await snapshotPDF.data!.setPage(pageIndex);
-  //     //Dispose the document.
-  //     document.dispose();
-  //     return true;
-  //   } catch (e) {
-  //     print('error edit file: $e');
-  //     return false;
-  //   }
-  // }
+        //Save the document.
+        if (tempPath == null || tempPath == "") {
+          tempPath = await FileLocalResponse().getPathLocal(
+            ePathType: EPathType.Storage,
+            configPathStr: 'pdffolder',
+          );
+        }
+        var nameFile =
+            'File_${datetime.month}${datetime.day}${datetime.second}${datetime.second}_${getRandomString(10)}.pdf';
+        var linkResult = "$tempPath$nameFile";
+        pathFile = linkResult;
+        _linkResult = linkResult;
+        File(pathFile).writeAsBytes(document.save());
+        setState(() {
+          _isLoading = true;
+          countBack = countBack + 1;
+        });
+        await Future.delayed(Duration(milliseconds: 500));
+        loadDocument(linkResult);
+        pathFile = linkResult;
+        // await Future.delayed(Duration(seconds: 1));
+        closeEdit();
+        //Dispose the document.
+        document.dispose();
+        return linkResult;
+      } else {
+        return '';
+      }
+    } catch (e) {
+      bloc.warningButPhe(
+          title: "Error, try again!", loaiThongBao: LoaiThongBao.thatBai);
+      print('error edit file: $e');
+      return '';
+    }
+  }
 
   Future<void> getCountPage(AsyncSnapshot<PDFViewController> snapshot) async {
     final int pageCount = await snapshot.data!.getPageCount() ?? 0;
     bloc.setCountPage(countPage: pageCount);
-  }
-
-  Widget buildChonMauButton(maincontext, snapshotPDF, ViewFileState state) {
-    return FlatButton(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      color: Colors.white,
-      onPressed: () async {
-        await snapshotPDF.data!.resetZoom(1);
-        await getSizeFirstPage(snapshotPDF, pageIndex, state);
-        // if (state.fileImageWidget == null) {
-        // await bloc.getMauChuKyConvertFile(
-        //     mauChuKyDefault: widget.selectedMauChuKy!,
-        //     globalKey: _globalKey,
-        //     isUsedSignTemp: isUseSignTemp);
-        // }
-        // bloc.pushShowData(true);
-        bloc.checkFirstTime();
-      },
-      child: Text("Chọn vị trí chữ ký"),
-      //"Chọn mẫu"
-    );
   }
 
   Future<void> getSizeFirstPage(AsyncSnapshot<PDFViewController> snapshot,
@@ -1090,93 +1378,21 @@ class _ViewFileHomeState extends State<ViewFileHome>
     return completer.future;
   }
 
-  Widget buildFirstFrameCH(String imageUrl) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 15, right: 15, top: 10),
-      child: Container(
-          width: double.infinity,
-          height: screenWidth * 0.3,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black, width: 0)),
-          child: Image.network('url fake' + imageUrl, fit: BoxFit.fill)),
-    );
-  }
-
-  Widget buildListLoaiKySo({required List<LoaiKySoModel> loaiKySoList}) {
-    return Container(
-      height: 40,
-      child: ListView.builder(
-          padding: EdgeInsets.only(top: 0, left: 10),
-          shrinkWrap: true,
-          scrollDirection: Axis.horizontal,
-          itemCount: loaiKySoList.length,
-          itemBuilder: (context, index) {
-            return InkWell(
-              onTap: () {},
-              // blocBT.pushIndexTypeCK(index),
-              child: Container(
-                width: screenWidth / 3.0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 0),
-                  child: Row(
-                    children: [
-                      _buildCheckIcon(loaiKySoList[index].isChoose),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 5.0),
-                          child: Text(loaiKySoList[index].title.toString()),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-    );
-  }
-
-  Widget _buildCheckIcon(bool? isCheck) {
-    return isCheck!
-        ? Container(
-            width: screenWidth * 0.05,
-            height: screenWidth * 0.05,
-            decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.all(Radius.circular(50))),
-            child: Padding(
-              padding: const EdgeInsets.all(2.0),
-              child: Container(
-                width: screenWidth * 0.03,
-                height: screenWidth * 0.03,
-                decoration: BoxDecoration(
-                    color: Colors.red,
-                    border: Border.all(width: 2.0, color: Colors.white),
-                    borderRadius: BorderRadius.all(Radius.circular(50))),
-              ),
-            ))
-        : Container(
-            width: screenWidth * 0.05,
-            height: screenWidth * 0.05,
-            decoration: BoxDecoration(
-                color: Colors.transparent,
-                border: Border.all(width: 2.0, color: Colors.red),
-                borderRadius: BorderRadius.all(Radius.circular(50))),
-          );
-  }
-
   Future<File?> createFileOfPdfUrl(String link) async {
     try {
-      final url = link;
       final filename = link.substring(link.lastIndexOf("/") + 1);
-      var request = await HttpClient().getUrl(Uri.parse(url));
+      var request = await HttpClient().getUrl(Uri.parse(link));
       var response = await request.close();
-      var bytes = await consolidateHttpClientResponseBytes(response);
-      String dir = (await getApplicationDocumentsDirectory()).path;
-      File file = File('$dir/$filename');
-      await file.writeAsBytes(bytes);
-      return file;
+      if (response.statusCode != 404) {
+        var bytes = await consolidateHttpClientResponseBytes(response);
+        String dir = (await getApplicationDocumentsDirectory()).path;
+        File file = File('$dir/$filename');
+        await file.writeAsBytes(bytes);
+        return file;
+      } else {
+        bloc.pushErrorData(true);
+        return null;
+      }
     } catch (e) {
       bloc.pushErrorData(true);
       return null;
@@ -1198,132 +1414,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
     });
   }
 
-  void settingModalBottomSheetV2(
-      context, AsyncSnapshot<PDFViewController> snapshotPDF, int pageIndex) {
-    Future.delayed(Duration(milliseconds: 500)).then((value) {});
-    showModalBottomSheet(
-        barrierColor: Colors.black.withOpacity(0.7),
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        context: context,
-        builder: (BuildContext bc) {
-          return ShowCaseWidget(
-            onFinish: () => bloc.onFinish(),
-            builder: Builder(builder: (context) {
-              myContext = context;
-              return Container(
-                height: screenHeight,
-                child: Center(
-                  child: BlocBuilder<ViewFileBloc, ViewFileState>(
-                      builder: (contextMain, state) {
-                    return Container(
-                      height: screenHeight * 0.55,
-                      width: screenWidth - 30,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          buildHeaderPopUp(snapshotPDF, pageIndex, context),
-                          SizedBox(height: 10),
-                          Container(
-                            decoration: BoxDecoration(
-                                border: Border.all(color: Colors.black)),
-                            width: screenWidth - 60,
-                            child: Row(
-                              children: [
-                                SizedBox(width: 15.0),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                top: 5.0, left: 15.0, right: 15.0, bottom: 5.0),
-                            child: RepaintBoundary(
-                                key: _globalKey,
-                                child: state.mauChuKy ??
-                                    NoDataScreen(isVisible: true)),
-                          ),
-                          Visibility(
-                            visible: false,
-                            child: Row(
-                              children: [
-                                Checkbox(
-                                  activeColor: Colors.red,
-                                  value: isViTriMacDinh == true
-                                      ? state.isUseDefaultConfig
-                                      : isViTriMacDinh,
-                                  onChanged: (isUse) {
-                                    if (isViTriMacDinh) {
-                                      bloc.suDungViTriCauHinhAct(
-                                          isUse: isUse ?? false);
-                                    }
-                                  },
-                                ),
-                                Expanded(
-                                    child: Text(
-                                        isViTriMacDinh
-                                            ? "Vị trí chữ ký đã cấu hình (${viTri != '' ? 'vị trí: $viTri - ' : ''}$soTrang)"
-                                            : "Vị trí chữ ký đã cấu hình",
-                                        style: TextStyle(
-                                            color: isViTriMacDinh
-                                                ? Colors.black
-                                                : Colors.grey,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700)))
-                              ],
-                            ),
-                          ),
-                          Expanded(child: SizedBox()),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10.0),
-                            child: Padding(
-                              padding: const EdgeInsets.all(5.0),
-                              child: InkWell(
-                                  onTap: () async {
-                                    try {
-                                      await getSizeFirstPage(
-                                          snapshotPDF, pageIndex, state);
-                                      await _capturePng();
-                                      //bloc.pushShowData(true);
-                                      bloc.checkFirstTime();
-                                      Navigator.of(myContext!).pop();
-                                    } catch (e) {
-                                      print(e);
-                                    }
-                                  },
-                                  child: Container(
-                                    height: 40,
-                                    width: 150,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      color: Colors.red,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(5.0),
-                                      child: Center(
-                                        child: Text("Thực hiện ký số",
-                                            style:
-                                                TextStyle(color: Colors.white)),
-                                      ),
-                                    ),
-                                  )),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
-              );
-            }),
-          );
-        });
-  }
-
   void modalBottomSheetTextField(
       contextBT, AsyncSnapshot<PDFViewController> snapshotPDF) {
     showModalBottomSheet(
@@ -1343,7 +1433,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                   Padding(
                     padding: EdgeInsets.only(top: screenHeight / 3.0),
                     child: Container(
-                      width: screenWidth - 30,
+                      width: screenWidth - 60,
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
@@ -1362,13 +1452,17 @@ class _ViewFileHomeState extends State<ViewFileHome>
                         children: [
                           Padding(
                             padding:
-                                const EdgeInsets.only(top: 8.30, bottom: 5.0),
-                            child: Text("Nội dung bút phê"),
+                                const EdgeInsets.only(top: 10, bottom: 5.0),
+                            child: Text(
+                              "Content",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15),
+                            ),
                           ),
                           _buildTextField(contextBT),
                           Padding(
                             padding:
-                                const EdgeInsets.only(bottom: 10.0, top: 5.0),
+                                const EdgeInsets.only(bottom: 10.0, top: 8.0),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -1378,8 +1472,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                       if (noiDungButPheController
                                           .text.isEmpty) {
                                         bloc.warningButPhe(
-                                            title:
-                                                'Vui lòng nhập nội dung bút phê',
+                                            title: 'Please enter content!',
                                             loaiThongBao: LoaiThongBao.canhBao);
                                         return;
                                       }
@@ -1408,7 +1501,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                     },
                                     child: Container(
                                       height: 40,
-                                      width: 150,
+                                      width: screenWidth / 3,
                                       decoration: BoxDecoration(
                                         boxShadow: [
                                           BoxShadow(
@@ -1424,14 +1517,14 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                       child: Padding(
                                         padding: const EdgeInsets.all(5.0),
                                         child: Center(
-                                          child: Text("Thực hiện bút phê",
+                                          child: Text("Continue",
                                               style: TextStyle(
                                                   color: Colors.white)),
                                         ),
                                       ),
                                     )),
                                 Padding(
-                                  padding: const EdgeInsets.only(left: 10.0),
+                                  padding: const EdgeInsets.only(left: 15.0),
                                   child: InkWell(
                                       onTap: () {
                                         noiDungButPheController.clear();
@@ -1439,7 +1532,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                       },
                                       child: Container(
                                         height: 40,
-                                        width: 150,
+                                        width: screenWidth / 3,
                                         decoration: BoxDecoration(
                                           boxShadow: [
                                             BoxShadow(
@@ -1479,17 +1572,17 @@ class _ViewFileHomeState extends State<ViewFileHome>
   Widget buildSignFrame(context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey[200],
+        color: Colors.blue.withOpacity(0.2),
         borderRadius: BorderRadius.all(Radius.circular(10.0)),
       ),
-      margin: EdgeInsets.all(5),
+      margin: EdgeInsets.symmetric(vertical: 15, horizontal: 15),
       child: RepaintBoundary(
           key: _globalKeySign,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.all(Radius.circular(10.0)),
             ),
-            height: screenHeight / 3,
+            height: screenHeight / 3.5,
             child: new Painter(_controllerSign),
           )),
     );
@@ -1501,57 +1594,35 @@ class _ViewFileHomeState extends State<ViewFileHome>
         color: Colors.grey[200],
         borderRadius: BorderRadius.all(Radius.circular(10.0)),
       ),
-      margin: EdgeInsets.all(5),
-      child: RepaintBoundary(
-          key: _globalKeyTextField,
-          child: TextField(
-            autofocus: true,
-            onChanged: (value) {
-              if (value.length > 220) bloc.showLimitLength();
-            },
-            controller: noiDungButPheController,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              hintText: "Nhập nội dung bút phê",
-              fillColor: Colors.transparent,
-              filled: true,
-            ),
-            maxLines: 10,
-            minLines: 1,
-          )),
+      margin: EdgeInsets.all(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: RepaintBoundary(
+            key: _globalKeyTextField,
+            child: TextField(
+              autofocus: true,
+              onChanged: (value) {
+                if (value.length > 220) bloc.showLimitLength();
+              },
+              controller: noiDungButPheController,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                hintText: "Type something!",
+                fillColor: Colors.transparent,
+                filled: true,
+              ),
+              maxLines: 10,
+              minLines: 1,
+            )),
+      ),
     );
-  }
-
-  Future<File?> _capturePng() async {
-    try {
-      final dateFolder = DateTime.now().day;
-      late int tailNumber;
-      tailNumber = random.nextInt(1000);
-      final RenderRepaintBoundary boundary = _globalKey.currentContext!
-          .findRenderObject()! as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-      final tempDir = await getTemporaryDirectory();
-      File fileMauChuKy = await File(
-              '${tempDir.path}/mauChuKy_image_$dateFolder@$tailNumber.png')
-          .create();
-      fileMauChuKy.writeAsBytesSync(pngBytes);
-      bloc.emitFileWidget(fileImageWidget: fileMauChuKy);
-      return fileMauChuKy;
-    } catch (e) {
-      print('_capturePng' + "$e");
-      return null;
-    }
   }
 
   Future<File?> _capturePngTextField() async {
     try {
       late int tailNumber;
-      final dateFolder = DateTime.now().day;
+      final dateFolder = datetime.day;
       tailNumber = random.nextInt(1000);
       final RenderRepaintBoundary? boundary = _globalKeyTextField.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
@@ -1576,7 +1647,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
   Future<File?> _capturePngSign() async {
     try {
       late int tailNumber;
-      final dateFolder = DateTime.now().day;
+      final dateFolder = datetime.day;
       tailNumber = random.nextInt(1000);
       final RenderRepaintBoundary? boundary = _globalKeySign.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
@@ -1598,18 +1669,29 @@ class _ViewFileHomeState extends State<ViewFileHome>
     }
   }
 
-  List<DropdownMenuItem<MauChuKySoModel>> buildDropdownMenuItems(
-      List<MauChuKySoModel>? list) {
-    List<DropdownMenuItem<MauChuKySoModel>> items = [];
-    for (MauChuKySoModel company in list!) {
-      items.add(
-        DropdownMenuItem(
-          value: company,
-          child: Text(company.tenMauChuKy!),
-        ),
-      );
+  Future<File?> _capturePngDraw() async {
+    try {
+      late int tailNumber;
+      final dateFolder = datetime.day;
+      tailNumber = random.nextInt(1000);
+      final RenderRepaintBoundary? boundary = _globalKeyDraw.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+      ui.Image image = await boundary!.toImage(pixelRatio: 3.0);
+
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+      // final tempDir = await getTemporaryDirectory();
+      File fileMauChuKy = await File(
+              '${tempDir.path}/SignDraw_image_$tailNumber@$dateFolder.png')
+          .create();
+      fileMauChuKy.writeAsBytesSync(pngBytes);
+      bloc.emitFileWidget(fileImageWidget: fileMauChuKy);
+      return fileMauChuKy;
+    } catch (e) {
+      print('_capturePngDraw' + "$e");
+      return null;
     }
-    return items;
   }
 
   Container buildHeaderPopUp(
@@ -1775,7 +1857,7 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                   ),
                   Row(children: [
                     InkWell(
-                      onTap: () => widget.controller.thickness = 2.0,
+                      onTap: () => widget.controller.thickness = 1.0,
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: Container(

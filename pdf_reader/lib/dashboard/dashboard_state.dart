@@ -1,5 +1,5 @@
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
- 
+
 class DashboardState {
   BlocBuilderStatusCase? status;
   bool isNight;

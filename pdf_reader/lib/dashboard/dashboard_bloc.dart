@@ -3,7 +3,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'dashboard_state.dart';
 
 class DashboardBloc extends Cubit<DashboardState> {
@@ -11,20 +10,19 @@ class DashboardBloc extends Cubit<DashboardState> {
   late List<GlobalObjectKey<FormState>> formKeyList;
   List<GlobalObjectKey<FormState>> newPrivateFileLst = [];
 
-  DashboardBloc()
-      : super(DashboardState(status: BlocBuilderStatusCase.initial));
+  DashboardBloc() : super(DashboardState());
 
   void initContext(BuildContext context) {
     this.mainContext = context;
     EasyLoading.init();
     configLoading();
-    checkTime();
+    // checkTime();
     // await EasyLoading.show(
     //   status: 'loading...',
     //   maskType: EasyLoadingMaskType.black,
     // );
     formKeyList =
-        new List.generate(5, (index) => GlobalObjectKey<FormState>(index));
+        new List.generate(0, (index) => GlobalObjectKey<FormState>(index));
   }
 
   void configLoading() {
@@ -45,8 +43,8 @@ class DashboardBloc extends Cubit<DashboardState> {
 
   void checkTime() {
     var hour = DateTime.now().hour;
-    emit(state.copyWith(isNight: true));
-    // hour >= 6 && hour <= 17
+   // var isNight = hour >= 6 && hour <= 17;
+    // emit(state.copyWith(isNight: !isNight));
   }
 
   Future<void> onChangeDay() async {

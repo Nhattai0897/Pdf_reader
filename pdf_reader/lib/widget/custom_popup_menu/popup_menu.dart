@@ -1,8 +1,8 @@
 import 'dart:core';
-import 'dart:ui'; 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:pdf_reader/widget/custom_popup_menu/triangle_painter.dart';
-import 'package:pdf_reader/widget/custom_popup_menu/utils.dart'; 
+import 'package:pdf_reader/widget/custom_popup_menu/utils.dart';
 import 'list_menu_layout.dart';
 import 'menu_config.dart';
 import 'menu_item.dart';
@@ -39,11 +39,14 @@ class PopupMenu {
   bool get isShow => _isShow;
 
   final MenuConfig config;
+
+  final bool isHorizonal;
   Size _screenSize = window.physicalSize / window.devicePixelRatio;
 
   PopupMenu(
       {required this.context,
       required this.items,
+      required this.isHorizonal,
       this.config = const MenuConfig(),
       this.onClickMenu,
       this.onDismiss,
@@ -62,13 +65,14 @@ class PopupMenu {
     final attachRect = rect ?? getWidgetGlobalRect(widgetKey!);
 
     // if (config.type == MenuType.list) {
-      menuLayout = ListMenuLayout(
-          config: config,
-          items: items,
-          onDismiss: dismiss,
-          context: context,
-          onClickMenu: onClickMenu,
-          index: index);
+    menuLayout = ListMenuLayout(
+        config: config,
+        items: items,
+        onDismiss: dismiss,
+        context: context,
+        onClickMenu: onClickMenu,
+        isHorizontal: isHorizonal,
+        index: index);
     // }
 
     _LayoutP layoutp = _calculateOffset(
