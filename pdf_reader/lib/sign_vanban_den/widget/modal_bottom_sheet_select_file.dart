@@ -27,15 +27,15 @@ void customModalBottomSheet(BuildContext? ctx,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                //margin: EdgeInsets.only(top: 20.0),
+                margin: EdgeInsets.only(top: 20.0),
                 child: Text(
-                  'Chọn chức năng',
-                  // style: CoreTextStyle.mediumTextFont(
-                  //     color: Colors.blue, fontSize: CoreFontSize.defaultAddSix),
+                  'Add File',
+                  style: TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(
-                height: 10.0,
+                height: 20.0,
               ),
               Container(
                 margin: EdgeInsets.all(10.0),
@@ -77,7 +77,7 @@ void customModalBottomSheet(BuildContext? ctx,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/storage_phone.png',
-                          title: 'Chọn file',
+                          title: 'Choose file',
                           function: fFile,
                         ),
                       ),
@@ -114,7 +114,8 @@ void customModalBottomSheet(BuildContext? ctx,
                     ),
                   ],
                 ),
-              )
+              ),
+              Spacer(),
             ],
           ),
         );

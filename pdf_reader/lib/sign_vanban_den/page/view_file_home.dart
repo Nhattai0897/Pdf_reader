@@ -15,7 +15,6 @@ import 'package:flutter_fullpdfview/flutter_fullpdfview.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:painter/painter.dart';
 import 'package:pdf_reader/sign_vanban_den/bloc/view_file_bloc.dart';
-import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/frame_custom_support.dart';
@@ -37,12 +36,6 @@ class ViewFileMain extends StatefulWidget {
   /// Dùng để phân biệt ký số hay xem file, nếu xem file thì (load file Alfresco)
   bool isUseMauChuKy;
 
-  /// Dùng để phân biệt ký cá nhân hay ký số bút phê
-  List<MauChuKySoModel>? danhSachChuKy;
-
-  /// Danh sách mẫu chữ ký đã cấu hình theo loại ký số
-  MauChuKySoModel? selectedMauChuKy;
-
   /// Model chữ ký đã chọn dùng cho ký số
   bool? openSigned;
 
@@ -55,14 +48,19 @@ class ViewFileMain extends StatefulWidget {
 
   /// Chế độ buổi tối
 
+  bool isUrl;
+
+  /// Get mode file
+  bool isPublic;
+
   ViewFileMain(
       {Key? key,
       required this.fileKyTen,
       required this.isKySo,
       required this.isUseMauChuKy,
       required this.isNightMode,
-      this.danhSachChuKy,
-      this.selectedMauChuKy,
+      required this.isPublic,
+      this.isUrl = false,
       this.openSigned,
       this.fileImgMauChuKy})
       : super(key: key);
@@ -79,12 +77,12 @@ class _ViewFileMainState extends State<ViewFileMain> {
       child: ViewFileHome(
           fileKyTen: widget.fileKyTen,
           isKySo: widget.isKySo,
-          danhSachChuKy: widget.danhSachChuKy,
+          isUrl: widget.isUrl,
           isUseMauChuKy: widget.isUseMauChuKy,
           isNightMode: widget.isNightMode,
-          selectedMauChuKy: widget.selectedMauChuKy,
           openSigned: widget.openSigned,
-          fileImgMauChuKy: widget.fileImgMauChuKy),
+          fileImgMauChuKy: widget.fileImgMauChuKy,
+          isPublic: widget.isPublic),
     );
   }
 }
@@ -93,11 +91,11 @@ class ViewFileHome extends StatefulWidget {
   String fileKyTen;
   bool isKySo;
   bool isUseMauChuKy;
-  List<MauChuKySoModel>? danhSachChuKy;
-  MauChuKySoModel? selectedMauChuKy;
+  bool isUrl;
   bool? openSigned;
   File? fileImgMauChuKy;
   bool isNightMode;
+  bool isPublic;
 
   ViewFileHome(
       {Key? key,
@@ -105,8 +103,8 @@ class ViewFileHome extends StatefulWidget {
       required this.isKySo,
       required this.isUseMauChuKy,
       required this.isNightMode,
-      this.danhSachChuKy,
-      this.selectedMauChuKy,
+      required this.isUrl,
+      required this.isPublic,
       this.openSigned,
       this.fileImgMauChuKy})
       : super(key: key);
@@ -129,15 +127,12 @@ class _ViewFileHomeState extends State<ViewFileHome>
   bool isReady = false;
   String pathFile = '';
   String pathPDF = "";
-  String? _linkResult;
   String noiDungButPhe = '';
   Offset offset = Offset.zero;
   double dxFrame = 0.0;
   double dyFrame = 0.0;
   double widthFrame = 0.0;
   double heightFrame = 0.0;
-  // double topPosition = 0.0;
-  // double leftPosition = 0.0;
   double widthDefault = 0.0;
   double heightDefault = 0.0;
   double minHeightSize = 0.0;
@@ -158,6 +153,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
   double firstPageHeight = 0.0;
   double firstPageWidth = 0.0;
   DateTime datetime = DateTime.now();
+  String pathOrisinal = "";
   var tempDir;
   String? tempPath;
   String _chars =
@@ -191,7 +187,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
   @override
   initState() {
     super.initState();
-    iniStateFnc();
+    pathOrisinal = widget.fileKyTen;
+    iniStateFnc(pathFile: widget.fileKyTen);
   }
 
   @override
@@ -212,10 +209,19 @@ class _ViewFileHomeState extends State<ViewFileHome>
   Widget build(BuildContext maincontext) {
     Completer<PDFViewController> _controller = Completer<PDFViewController>();
     initDataUI(maincontext);
-    return MaterialApp(
-        home: Scaffold(
-            resizeToAvoidBottomInset: false,
-            body: buildContentKySo(_controller, maincontext)));
+    return WillPopScope(
+      onWillPop: onWillPop,
+      child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          body: buildPDFFrame(_controller, maincontext)),
+    );
+  }
+
+  Future<bool> onWillPop() async {
+    {
+      Navigator.pop(context, pathPDF == "" ? pathOrisinal : pathPDF);
+      return true;
+    }
   }
 
   void initDataUI(maincontext) {
@@ -241,7 +247,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
     formKeyList = GlobalObjectKey<FormState>(1);
   }
 
-  Widget buildContentKySo(
+  Widget buildPDFFrame(
       Completer<PDFViewController> _controller, BuildContext maincontext) {
     return BlocBuilder<ViewFileBloc, ViewFileState>(
         builder: (contextMain, state) {
@@ -258,29 +264,41 @@ class _ViewFileHomeState extends State<ViewFileHome>
                     children: [
                       IconButton(
                           onPressed: () {
-                            if (countBack != 0) {
-                              Navigator.pop(maincontext, _linkResult);
-                            } else {
-                              Navigator.pop(maincontext, widget.fileKyTen);
-                            }
+                            Navigator.pop(maincontext,
+                                pathPDF == "" ? pathOrisinal : pathPDF);
                           },
                           icon:
                               Icon(Icons.arrow_back_ios, color: Colors.white)),
-                      Padding(
-                        padding: const EdgeInsets.all(0.0),
-                        child: Container(
-                            child: Text(
-                          'Page ${state.currentPage! + 1}${state.countPage != 0 ? ' / ' + state.countPage.toString() : ''}',
-                          style: TextStyle(color: Colors.white),
-                        )),
-                      ),
-                      const Spacer(),
-                      const SizedBox(width: 5.0),
-                      Visibility(
-                          child: buildHeaderPDF(_controller, state),
-                          visible: widget.isKySo,
-                          maintainState: true),
-                      const SizedBox(width: 5.0)
+                      Expanded(
+                        child: StreamBuilder<bool>(
+                            stream: bloc.streamReady,
+                            builder: (context, snapshot) {
+                              var isReadyLoad = snapshot.data ?? true;
+                              return isReadyLoad
+                                  ? Row(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.all(0.0),
+                                          child: Container(
+                                              child: Text(
+                                            'Page ${state.currentPage! + 1}${state.countPage != 0 ? ' / ' + state.countPage.toString() : ''}',
+                                            style:
+                                                TextStyle(color: Colors.white),
+                                          )),
+                                        ),
+                                        const Spacer(),
+                                        const SizedBox(width: 5.0),
+                                        Visibility(
+                                            child: buildHeaderPDF(
+                                                _controller, state),
+                                            visible: widget.isKySo,
+                                            maintainState: true),
+                                        const SizedBox(width: 5.0),
+                                      ],
+                                    )
+                                  : SizedBox();
+                            }),
+                      )
                     ],
                   ))),
           Expanded(
@@ -426,16 +444,28 @@ class _ViewFileHomeState extends State<ViewFileHome>
                             maxWidthSize: maxWidthSize,
                             limitHeight: builder.data?.elementAt(1) ?? 0.0,
                             child: Padding(
-                              // padding: const EdgeInsets.only(top: 2.0, bottom: 5.0, left: 5.0, right: 5.0),
-                              padding: const EdgeInsets.only(
-                                  top: 0.0, bottom: 0.0, left: 0.0, right: 0.0),
-                              child: pathFile.isNotEmpty
-                                  ? Image.file(
-                                      File(pathFile),
-                                      //state.fileImageWidget!,
-                                      fit: BoxFit.fill,
-                                    )
-                                  : SizedBox(),
+                              padding: const EdgeInsets.all(0),
+                              child: Visibility(
+                                  visible: pathFile.isNotEmpty,
+                                  maintainState: true,
+                                  child: Image(
+                                    image: FileImage(File(pathFile)),
+                                    frameBuilder: (context, child, frame,
+                                        wasSynchronouslyLoaded) {
+                                      return frame == null
+                                          ? Container(
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(65.0),
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              ),
+                                              width: widthFrame,
+                                              height: widthFrame,
+                                            )
+                                          : child;
+                                    },
+                                  )),
                             )),
                   ),
                 ),
@@ -444,6 +474,12 @@ class _ViewFileHomeState extends State<ViewFileHome>
           }),
     );
   }
+
+  // Future<File> _getLocalFile(String filename) async {
+  //   String dir = (await getApplicationDocumentsDirectory()).path;
+  //   File f = new File('$dir/$filename');
+  //   return f;
+  // }
 
   Visibility buildSignParent(BuildContext context, bool? visible,
       AsyncSnapshot<PDFViewController> snapshotPDF, ViewFileState state) {
@@ -632,7 +668,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
           if (snapshotPDF.hasData) {
             if (pathFile != '') {
               await snapshotPDF.data!.setPageWithAnimation(pageIndexTemp);
-              //await snapshotPDF.data!.resetZoom(1);
             } else {
               if (_pages == 1 || _pages == 2) {
                 await snapshotPDF.data!.setZoom(1.07);
@@ -640,13 +675,30 @@ class _ViewFileHomeState extends State<ViewFileHome>
                 await snapshotPDF.data!.setPageWithAnimation(_pages);
                 await Future.delayed(Duration(milliseconds: 50));
                 await snapshotPDF.data!.setPageWithAnimation(0);
+                await Future.delayed(Duration(milliseconds: 500));
+                await snapshotPDF.data!.setZoom(1.07);
+                await Future.delayed(Duration(milliseconds: 40));
+                await snapshotPDF.data!.resetZoom(1);
               }
             }
           }
         },
         onViewCreated: (PDFViewController pdfViewController) =>
             _controller.complete(pdfViewController),
-        onError: (error) => setState(() => isReady = false),
+        onError: (error) async {
+          print('link $error');
+          setState(() {
+            isReady = false;
+            _isLoading = true;
+          });
+          bloc.warningButPhe(
+              title: "the file does not exist, please check the path again!",
+              loaiThongBao: LoaiThongBao.thatBai);
+          await Future.delayed(Duration(milliseconds: 40));
+          bloc.pushReady(false);
+          await Future.delayed(Duration(milliseconds: 40));
+          bloc.pushDownLoadData(true);
+        },
         onPageChanged: (int page, int total) {
           pageIndex = page;
           bloc.setCountCurrentPage(currentPage: page);
@@ -678,7 +730,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                           visible: countBack != 0,
                           maintainState: true,
                           child: InkWell(
-                              onTap: (() => ahowDialogUndo(context)),
+                              onTap: (() => showDialogUndo(context)),
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 15),
                                 child: Stack(
@@ -734,7 +786,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
         });
   }
 
-  void ahowDialogUndo(contextGobal) {
+  void showDialogUndo(contextGobal) {
     showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -806,10 +858,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
                           width: screenWidth / 3.3,
                           child: RaisedButton(
                             onPressed: () {
-                              iniStateFnc();
-                              setState(() {
-                                countBack = 0;
-                              });
+                              iniStateFnc(pathFile: pathOrisinal);
+                              setState(() => countBack = 0);
                               Navigator.pop(context);
                             },
                             child: Text(
@@ -927,6 +977,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                 isEdit = false;
               });
               bloc.pushIndexCalculator(false);
+              bloc.showDrawFrame(false);
               _controllerSign.clear();
               _controllerDraw.clear();
               noiDungButPheController.clear();
@@ -956,7 +1007,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 15.0),
             child: InkWell(
-              onTap: () => modalBottomSheetTextField(maincontext, snapshotPDF),
+              onTap: () =>
+                  modalBottomSheetTextField(maincontext, snapshotPDF, state),
               child: Image.asset(
                 "assets/rename.png",
                 height: 27,
@@ -970,6 +1022,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                 isEdit = false;
               });
               bloc.pushIndexCalculator(false);
+              bloc.showDrawFrame(false);
               _controllerSign.clear();
               _controllerDraw.clear();
               noiDungButPheController.clear();
@@ -1013,6 +1066,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                 isEdit = false;
               });
               bloc.pushIndexCalculator(false);
+              bloc.showDrawFrame(false);
               _controllerSign.clear();
               _controllerDraw.clear();
               noiDungButPheController.clear();
@@ -1038,7 +1092,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                     state: state);
               } else {
                 bloc.warningButPhe(
-                    title: "Edit fail, try again!",
+                    title: "File editing failed, please try again!",
                     loaiThongBao: LoaiThongBao.thatBai);
               }
             },
@@ -1086,6 +1140,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                   isEdit = false;
                 });
                 bloc.pushIndexCalculator(false);
+                bloc.showDrawFrame(false);
                 _controllerSign.clear();
                 _controllerDraw.clear();
                 noiDungButPheController.clear();
@@ -1129,7 +1184,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
             ),
           ),
           InkWell(
-            onTap: () => modalBottomSheetTextField(maincontext, snapshotPDF),
+            onTap: () =>
+                modalBottomSheetTextField(maincontext, snapshotPDF, state),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15),
               child: Image.asset(
@@ -1226,18 +1282,15 @@ class _ViewFileHomeState extends State<ViewFileHome>
     dyFrame = 0.0;
   }
 
-  void iniStateFnc() {
+  void iniStateFnc({required String pathFile}) {
     random = new Random();
     bloc = BlocProvider.of<ViewFileBloc>(context);
-    bloc.initContext(context, widget.fileKyTen.toString());
-    bloc.initLoading(context);
-    if (widget.isUseMauChuKy == true && widget.fileImgMauChuKy != null) {
-      bloc.emitFileWidget(fileImageWidget: widget.fileImgMauChuKy!);
-    }
+    bloc.initContext(context, pathFile.toString());
+    pathPDF = pathFile;
     WidgetsBinding.instance!.addPostFrameCallback((_) async {
       tempPath = await FileLocalResponse().getPathLocal(
         ePathType: EPathType.Storage,
-        configPathStr: 'pdffolder',
+        configPathStr: widget.isPublic ? 'publicFolder' : 'privateFolder',
       );
       tempDir = await getTemporaryDirectory();
     });
@@ -1247,21 +1300,37 @@ class _ViewFileHomeState extends State<ViewFileHome>
     //     'Căn cứ Quyết định số 678/QĐ-BNV ngày 27/8/2019 của Bộ trưởng Bộ Nội vụ ban hành Quy chế phát ngôn và cung cấp thông tin cho báo chí của Bộ Nội vụ;';
 
     if (widget.isKySo == false) {
-      // if (widget.fileKyTen.contains('www')) {
-      //   //Online
-      //   changePDF(widget.fileKyTen.toString());
-      // } else {
-      //   //Off line
-      //   loadDocument(widget.fileKyTen.toString());
-      // }
+      if (widget.isUrl) {
+        //Online
+        changePDF(pathFile.toString()).then((value) {
+          if (value != null) {
+            valueStr = value;
+          } else {
+            bloc.pushDownLoadData(true);
+          }
+        });
+      } else {
+        //Off line
+        loadDocument(pathFile.toString());
+      }
     } else {
-      changePDF(widget.fileKyTen.toString()).then((value) {
-        if (value != null) {
-          valueStr = value;
-        } else {
-          bloc.pushDownLoadData(true);
-        }
-      });
+      if (widget.isUrl == true ||
+          pathFile.contains('.com') ||
+          pathFile.contains('https')) {
+        //Online
+        changePDF(pathFile.toString()).then((value) {
+          if (value != null) {
+            valueStr = value;
+          } else {
+            bloc.pushDownLoadData(true);
+          }
+        });
+      } else {
+        //Off line
+        loadDocument(pathFile.toString());
+        pathPDF = widget.fileKyTen;
+        isLoadFileSuccess = true;
+      }
     }
   }
 
@@ -1276,8 +1345,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
           PdfDocument(inputBytes: File(pathFileLocal).readAsBytesSync());
       //Get the existing PDF page.
       final PdfPage page = document.pages[pageIndex];
-      // final List<int> fontData = await _readData('Sarabun-Regular.ttf');
-      // final File? imgTextField = await _capturePngTextField();
       double dx = 0.0;
       double dy = 0.0;
       if (snapshotPDF.hasData) {
@@ -1295,7 +1362,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
         heightFrame = this.heightFrame * ratioHeightCanvas;
         dx = dxFrame * ratioWidthCanvas;
         dy = dyFrame * ratioHeightCanvas;
-
         //Draw the image
         page.graphics.drawImage(
             PdfBitmap(File(pathFile).readAsBytesSync()),
@@ -1313,24 +1379,25 @@ class _ViewFileHomeState extends State<ViewFileHome>
         if (tempPath == null || tempPath == "") {
           tempPath = await FileLocalResponse().getPathLocal(
             ePathType: EPathType.Storage,
-            configPathStr: 'pdffolder',
+            configPathStr: widget.isPublic ? 'publicFolder' : 'privateFolder',
           );
         }
+        var nameOld = widget.fileKyTen.split("/").last.replaceAll(".pdf", '');
         var nameFile =
-            'File_${datetime.month}${datetime.day}${datetime.second}${datetime.second}_${getRandomString(10)}.pdf';
+            '${nameOld}_edit_${datetime.day}${datetime.hour}${datetime.second}_${getRandomString(4)}.pdf';
         var linkResult = "$tempPath$nameFile";
         pathFile = linkResult;
-        _linkResult = linkResult;
-        File(pathFile).writeAsBytes(document.save());
+        File(pathFile).writeAsBytes(document.saveSync());
         setState(() {
           _isLoading = true;
           countBack = countBack + 1;
         });
         await Future.delayed(Duration(milliseconds: 500));
         loadDocument(linkResult);
-        pathFile = linkResult;
-        // await Future.delayed(Duration(seconds: 1));
+
         closeEdit();
+        //Delete old file
+        await File(pathFileLocal).delete();
         //Dispose the document.
         document.dispose();
         return linkResult;
@@ -1338,9 +1405,13 @@ class _ViewFileHomeState extends State<ViewFileHome>
         return '';
       }
     } catch (e) {
-      bloc.warningButPhe(
-          title: "Error, try again!", loaiThongBao: LoaiThongBao.thatBai);
       print('error edit file: $e');
+      bloc.pushDownLoadDraw(false);
+      bloc.warningButPhe(
+          title: "File editing failed, please try again!",
+          loaiThongBao: LoaiThongBao.thatBai);
+
+      setState(() => _isLoading = false);
       return '';
     }
   }
@@ -1395,6 +1466,11 @@ class _ViewFileHomeState extends State<ViewFileHome>
       }
     } catch (e) {
       bloc.pushErrorData(true);
+      await Future.delayed(Duration(milliseconds: 50));
+      bloc.warningButPhe(
+          title: 'File download failed, please check the link again',
+          loaiThongBao: LoaiThongBao.thatBai);
+      pathPDF = 'error';
       return null;
     }
   }
@@ -1414,8 +1490,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
     });
   }
 
-  void modalBottomSheetTextField(
-      contextBT, AsyncSnapshot<PDFViewController> snapshotPDF) {
+  void modalBottomSheetTextField(BuildContext contextBT,
+      AsyncSnapshot<PDFViewController> snapshotPDF, ViewFileState state) {
     showModalBottomSheet(
         barrierColor: Colors.black.withOpacity(0.3),
         backgroundColor: Colors.transparent,
@@ -1424,80 +1500,107 @@ class _ViewFileHomeState extends State<ViewFileHome>
         builder: (BuildContext bc) {
           return InkWell(
             onTap: () => FocusScope.of(context).requestFocus(FocusNode()),
-            child: BlocBuilder<ViewFileBloc, ViewFileState>(
-                builder: (contextBT, state) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(top: screenHeight / 3.0),
-                    child: Container(
-                      width: screenWidth - 60,
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 2,
-                            offset: Offset(0, 3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(top: screenHeight / 3.0),
+                  child: Container(
+                    width: screenWidth - 60,
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 2,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                      color: Colors.white,
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10, bottom: 5.0),
+                          child: Text(
+                            "Content",
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15),
                           ),
-                        ],
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(top: 10, bottom: 5.0),
-                            child: Text(
-                              "Content",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 15),
-                            ),
-                          ),
-                          _buildTextField(contextBT),
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: 10.0, top: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                InkWell(
-                                    onTap: () async {
-                                      if (noiDungButPheController
-                                          .text.isEmpty) {
-                                        bloc.warningButPhe(
-                                            title: 'Please enter content!',
-                                            loaiThongBao: LoaiThongBao.canhBao);
-                                        return;
-                                      }
+                        ),
+                        _buildTextField(contextBT),
+                        Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: 10.0, top: 8.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              InkWell(
+                                  onTap: () async {
+                                    if (noiDungButPheController.text.isEmpty) {
+                                      bloc.warningButPhe(
+                                          title: 'Please enter content!',
+                                          loaiThongBao: LoaiThongBao.canhBao);
+                                      return;
+                                    }
 
-                                      bloc.emitTypeWidget(
-                                          typeEditCase: TypeEditCase.text);
+                                    bloc.emitTypeWidget(
+                                        typeEditCase: TypeEditCase.text);
 
-                                      await snapshotPDF.data!.resetZoom(1);
-                                      FocusScope.of(context)
-                                          .requestFocus(FocusNode());
-                                      await Future.delayed(
-                                          Duration(milliseconds: 500));
-                                      var fileConvert =
-                                          await _capturePngTextField();
-                                      if (fileConvert != null) {
-                                        pathFile = fileConvert.path;
-                                      }
+                                    await snapshotPDF.data!.resetZoom(1);
+                                    FocusScope.of(context)
+                                        .requestFocus(FocusNode());
+                                    await Future.delayed(
+                                        Duration(milliseconds: 500));
+                                    var fileConvert =
+                                        await _capturePngTextField();
+                                    if (fileConvert != null) {
+                                      pathFile = fileConvert.path;
+                                    }
+                                    Navigator.pop(contextBT);
+                                    await Future.delayed(
+                                        Duration(milliseconds: 500));
+                                    noiDungButPhe =
+                                        noiDungButPheController.text;
+                                    await getSizeFirstPage(
+                                        snapshotPDF, pageIndex, state);
+                                    // bloc.pushShowData(true);
+                                  },
+                                  child: Container(
+                                    height: 40,
+                                    width: screenWidth / 3,
+                                    decoration: BoxDecoration(
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.grey.withOpacity(0.5),
+                                          spreadRadius: 1,
+                                          blurRadius: 2,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.blue,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(5.0),
+                                      child: Center(
+                                        child: Text("Continue",
+                                            style:
+                                                TextStyle(color: Colors.white)),
+                                      ),
+                                    ),
+                                  )),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 15.0),
+                                child: InkWell(
+                                    onTap: () {
+                                      noiDungButPheController.clear();
                                       Navigator.pop(contextBT);
-                                      await Future.delayed(
-                                          Duration(milliseconds: 500));
-                                      noiDungButPhe =
-                                          noiDungButPheController.text;
-                                      await getSizeFirstPage(
-                                          snapshotPDF, pageIndex, state);
-                                      // bloc.pushShowData(true);
                                     },
                                     child: Container(
                                       height: 40,
@@ -1512,59 +1615,25 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                           ),
                                         ],
                                         borderRadius: BorderRadius.circular(10),
-                                        color: Colors.blue,
+                                        color: Colors.white,
                                       ),
                                       child: Padding(
-                                        padding: const EdgeInsets.all(5.0),
+                                        padding: const EdgeInsets.all(10.0),
                                         child: Center(
-                                          child: Text("Continue",
-                                              style: TextStyle(
-                                                  color: Colors.white)),
+                                          child: Text('Cancel'),
                                         ),
                                       ),
                                     )),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 15.0),
-                                  child: InkWell(
-                                      onTap: () {
-                                        noiDungButPheController.clear();
-                                        Navigator.pop(contextBT);
-                                      },
-                                      child: Container(
-                                        height: 40,
-                                        width: screenWidth / 3,
-                                        decoration: BoxDecoration(
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color:
-                                                  Colors.grey.withOpacity(0.5),
-                                              spreadRadius: 1,
-                                              blurRadius: 2,
-                                              offset: Offset(0, 3),
-                                            ),
-                                          ],
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          color: Colors.white,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(10.0),
-                                          child: Center(
-                                            child: Text('Cancel'),
-                                          ),
-                                        ),
-                                      )),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  )
-                ],
-              );
-            }),
+                  ),
+                )
+              ],
+            ),
           );
         });
   }
@@ -1602,16 +1671,18 @@ class _ViewFileHomeState extends State<ViewFileHome>
             child: TextField(
               autofocus: true,
               onChanged: (value) {
+                print(value.length);
                 if (value.length > 220) bloc.showLimitLength();
               },
+              style: TextStyle(fontSize: 18),
               controller: noiDungButPheController,
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: "Type something!",
-                fillColor: Colors.transparent,
-                filled: true,
-              ),
+                  border: InputBorder.none,
+                  hintText: "Type something!",
+                  fillColor: Colors.transparent,
+                  filled: true,
+                  hintStyle: TextStyle(fontSize: 16)),
               maxLines: 10,
               minLines: 1,
             )),
@@ -1692,48 +1763,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
       print('_capturePngDraw' + "$e");
       return null;
     }
-  }
-
-  Container buildHeaderPopUp(
-      AsyncSnapshot<PDFViewController> snapshotPDF, int pageIndex, context) {
-    return Container(
-      height: 45,
-      decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(10),
-          topLeft: Radius.circular(10),
-        ),
-      ),
-      child: BlocBuilder<ViewFileBloc, ViewFileState>(
-          builder: (contextMain, state) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          child: Row(
-            children: [
-              Text("Danh sách mẫu chữ ký",
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700)),
-              Spacer(),
-              InkWell(
-                onTap: () {
-                  // getSizeFirstPage(snapshotPDF, pageIndex, state);
-                  // bloc.pushShowData(true);
-                  Navigator.pop(context);
-                },
-                child: Icon(
-                  Icons.close,
-                  size: 20,
-                  color: Colors.white,
-                ),
-              )
-            ],
-          ),
-        );
-      }),
-    );
   }
 
   void loadDocument(String? link) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'dart:math' as math;
+import 'package:another_flushbar/flushbar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,16 +10,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
 import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/modal_bottom_sheet_select_file.dart';
 import 'package:pdf_reader/utils/format_date.dart';
 import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart';
+import 'package:pdf_reader/widget/lock_page.dart';
+import 'package:pdf_reader/widget/popup_link.dart';
+import 'package:pdf_reader/widget/popup_list_picker.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_extend/share_extend.dart';
+import 'package:tiengviet/tiengviet.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_state.dart';
 
@@ -48,24 +59,52 @@ class _DashboardPageState extends State<DashboardPage>
   late LocalAuthentication auth;
   late List<GlobalObjectKey<FormState>> formKeyList;
   late TextEditingController searchController;
-  String msg = "You are not authorized.";
+
   late String pathFile;
-  /////////////////
   late Animation<Color?> animation;
   late AnimationController controller;
-  bool isAuthen = false;
+  String msg = "You are not authorized.";
   List<MenuItemProvider> itemDropdown = [];
-  // the GlobalKey is needed to animate the list
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey(); // backing data
+  bool isAuthen = false;
+  bool isZalo = false;
+  bool isDownloadFolder = false;
+  bool isSearch = false;
+  bool isFirstSlide = false;
+  int? countPermis;
+  late final Box pdfBox;
+  late final Box pdfPrivateBox;
+  late final Box conutPermissBox;
+
+  ///List pdf public dc clone ra từ list orgin hive publicBox
+  List<PDFModel> publicCloneList = [];
+
+  /// list pdf public dùng hiển thị khi search(không nên thao tác xóa sửa)
+  List<PDFModel> publicSearchCurrentList = [];
+
+  ///List pdf private dc clone ra từ list orgin hive publicBox
+  List<PDFModel> privateCloneList = [];
+
+  /// list pdf privarte dùng hiển thị khi search(không nên thao tác xóa sửa)
+  List<PDFModel> privateSearchCurrentList = [];
+
+  /// Biến dùng để hiển thị ban đầu khi chưa nhập text search(Public)
+  bool isFirstPublic = false;
+
+  /// Biến dùng để hiển thị ban đầu khi chưa nhập text search(Private)
+  bool isFirstPrivate = false;
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    pdfBox = Hive.box('pdfBox');
+    pdfPrivateBox = Hive.box('pdfPriavteBox');
+    conutPermissBox = Hive.box('countPermisBox');
     bloc = BlocProvider.of<DashboardBloc>(context);
     searchController = TextEditingController();
     auth = LocalAuthentication();
     bloc.initContext(context);
+    setupCountPermiss();
     // Animation wave
     _controller =
         AnimationController(vsync: this, duration: Duration(seconds: 60))
@@ -76,11 +115,9 @@ class _DashboardPageState extends State<DashboardPage>
     animation = ColorTween(
             begin: Color.fromRGBO(148, 112, 251, 0.2), end: Colors.black87)
         .animate(controller)
-          ..addListener(() {
-            setState(() {
-              // The state that has changed here is the animation object’s value.
-            });
-          });
+          ..addListener(() => setState(() {
+                // The state that has changed here is the animation object’s value.
+              }));
     tabController = TabController(
       initialIndex: 0,
       length: 2,
@@ -97,10 +134,52 @@ class _DashboardPageState extends State<DashboardPage>
       });
   }
 
+  Future<void> setupCountPermiss() async {
+    // get giá trị theo key là name.
+    countPermis = conutPermissBox.get('count');
+    if (countPermis == null) {
+      await conutPermissBox.put('count', 0);
+    }
+  }
+
+  _deleteItemList(int index) {
+    pdfBox.deleteAt(index);
+  }
+
+  _updateItem({required PDFModel pdfModel, required int index}) async {
+    await pdfBox.putAt(index, pdfModel);
+  }
+
+  Future<void> addPublicItem(PDFModel pdfModel) async {
+    // phương thức add() sẽ tự động tăng key lên +1 mỗi khi có liên hệ được thêm vào.
+    await pdfBox.add(PDFModel(
+        pathFile: pdfModel.pathFile,
+        timeOpen: pdfModel.timeOpen,
+        currentIndex: pdfModel.currentIndex,
+        isOpen: false,
+        isEdit: false));
+  }
+
+  ///////// Private box ////////
+
+  _deleteItemPrivateList(int index) {
+    pdfPrivateBox.deleteAt(index);
+  }
+
+  _updatePrivateItem({required PDFModel pdfModel, required int index}) async {
+    await pdfPrivateBox.putAt(index, pdfModel);
+  }
+
+  Future<void> addPrivateItem(PDFModel pdfModel) async {
+    // phương thức add() sẽ tự động tăng key lên +1 mỗi khi có liên hệ được thêm vào.
+    await pdfPrivateBox.add(pdfModel);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
     controller.dispose();
+    Hive.close();
     super.dispose();
   }
 
@@ -114,13 +193,11 @@ class _DashboardPageState extends State<DashboardPage>
     return SafeArea(
         top: false,
         child: GestureDetector(
-          onTap: () {
-            FocusScope.of(context).unfocus();
-            bloc.searchAction(false);
-          },
+          onTap: () => closeSearch(),
           child: Scaffold(
             body: BlocBuilder<DashboardBloc, DashboardState>(
                 builder: (context, state) {
+              isSearch = state.isSearch;
               return Container(
                 color: animation.value,
                 child: Column(
@@ -163,19 +240,44 @@ class _DashboardPageState extends State<DashboardPage>
                               child: Container(
                                   color: Colors.transparent,
                                   child: Row(children: [
-                                    IconButton(
-                                        onPressed: () =>
-                                            bloc.searchAction(true),
-                                        icon: Icon(
-                                          Icons.search,
-                                          color: Colors.white,
-                                        )),
+                                    isAuthen && tabController.index == 1 ||
+                                            tabController.index == 0
+                                        ? IconButton(
+                                            onPressed: () {
+                                              bloc.searchAction(true);
+                                            },
+                                            icon: Icon(
+                                              Icons.search,
+                                              color: Colors.white,
+                                            ))
+                                        : IconButton(
+                                            onPressed: () => Flushbar(
+                                                  messageText: Text(
+                                                      "To search in private mode, you need to unlock it before searching!",
+                                                      style: TextStyle(
+                                                          color: Colors.white)),
+                                                  icon: Icon(
+                                                      Icons
+                                                          .warning_amber_rounded,
+                                                      color: Colors
+                                                          .yellowAccent[100]),
+                                                  backgroundColor:
+                                                      Colors.yellow[700]!,
+                                                  flushbarPosition:
+                                                      FlushbarPosition.TOP,
+                                                  duration: Duration(
+                                                      milliseconds: 3000),
+                                                )..show(context),
+                                            icon: Icon(
+                                              Icons.search_off,
+                                              color: Colors.white,
+                                            )),
                                     Expanded(
                                         child: Stack(
                                       children: [
                                         Center(
                                             child: Text(
-                                          'PDF Reader',
+                                          'PDF Editor',
                                           style: TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.bold),
@@ -203,6 +305,11 @@ class _DashboardPageState extends State<DashboardPage>
                                                       child: state.isSearch
                                                           ? TextField(
                                                               autofocus: true,
+                                                              onChanged: (keySearch) => tabController.index == 0
+                                                                  ? searchPublicList(
+                                                                      keySearch)
+                                                                  : searchPrivateList(
+                                                                      keySearch),
                                                               decoration: InputDecoration(
                                                                   hintStyle: TextStyle(
                                                                       color: Colors
@@ -227,6 +334,10 @@ class _DashboardPageState extends State<DashboardPage>
                                                   state.isSearch
                                                       ? InkWell(
                                                           onTap: () {
+                                                            isFirstPublic =
+                                                                false;
+                                                            searchController
+                                                                .clear();
                                                             searchController
                                                                 .clear();
                                                             FocusScope.of(
@@ -263,7 +374,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   ])),
                             ),
                             buildTabbarWidget(state),
-                            buildTotalFile(),
+                            buildTotalFile(state),
                           ],
                         ),
                       ],
@@ -273,58 +384,50 @@ class _DashboardPageState extends State<DashboardPage>
                         physics: NeverScrollableScrollPhysics(),
                         controller: tabController,
                         children: [
-                          bloc.formKeyList.length != 0
-                              ? buildListViewPublish(state)
-                              : buildEmptyPublish(),
-                          isAuthen == true
-                              ? bloc.formKeyList.length != 0
-                                  ? buildListViewPrivate(state)
-                                  : buildEmptyPrivate()
-                              : Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 15),
-                                        child: Text(
-                                          'Unlock to see private files',
-                                          style: TextStyle(
-                                              color: state.isNight
-                                                  ? Colors.white
-                                                  : Colors.black,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      InkWell(
-                                        onTap: () async {
-                                          try {
-                                            bool pass = await auth.authenticate(
-                                                localizedReason:
-                                                    'Authenticate with pattern/pin/passcode',
-                                                biometricOnly: false);
-                                            if (pass) {
-                                              msg = "You are Authenticated.";
-                                              setState(() {
-                                                isAuthen = true;
-                                              });
-                                            }
-                                          } on PlatformException catch (ex) {
-                                            msg =
-                                                "Error while opening fingerprint/face scanner";
-                                          }
-                                        },
-                                        child: Image.asset(
-                                          "assets/fingerprint-2.png",
-                                          height: 75,
-                                        ),
-                                      )
-                                    ],
-                                  ),
+                          state.isSearch
+                              ? buildPublicSearchListView(
+                                  isFirstPublic
+                                      ? publicSearchCurrentList
+                                      : publicCloneList,
+                                  state)
+                              : WatchBoxBuilder(
+                                  box: pdfBox,
+                                  builder: (context, pdfListBox) {
+                                    bloc.updatePublicCount(pdfListBox.length);
+                                    // Get list dynamic type
+                                    publicCloneList = pdfListBox.values
+                                        .toList()
+                                        .cast<PDFModel>();
+                                    return publicCloneList.length != 0
+                                        ? buildPublicListView(
+                                            publicCloneList, state)
+                                        : buildEmptyPublish();
+                                  },
                                 ),
+                          isAuthen == true
+                              ? state.isSearch
+                                  ? buildListPrivateSearch(
+                                      isFirstPrivate
+                                          ? privateSearchCurrentList
+                                          : privateCloneList,
+                                      state)
+                                  : WatchBoxBuilder(
+                                      box: pdfPrivateBox,
+                                      builder: (context, pdfListPrivateBox) {
+                                        bloc.updatePrivateCount(
+                                            pdfListPrivateBox.length);
+                                        // Get list dynamic type
+                                        privateCloneList = pdfListPrivateBox
+                                            .values
+                                            .toList()
+                                            .cast<PDFModel>();
+                                        return privateCloneList.length != 0
+                                            ? buildListViewPrivate(
+                                                privateCloneList, state)
+                                            : buildEmptyPrivate();
+                                      },
+                                    )
+                              : buildAuthenWidget(state),
                         ],
                       ),
                     )
@@ -336,19 +439,1039 @@ class _DashboardPageState extends State<DashboardPage>
         ));
   }
 
+  void closeSearch() {
+    if (isSearch) {
+      FocusScope.of(context).unfocus();
+      isFirstPublic = false;
+      bloc.searchAction(false);
+      searchController.clear();
+    }
+  }
+
+  void searchPublicList(String keySearch) {
+    setState(() {
+      isFirstPublic = true;
+    });
+    if (keySearch.trim() == "") {
+      setState(() => publicSearchCurrentList = publicCloneList);
+    } else {
+      setState(() => publicSearchCurrentList = []);
+      for (var item in publicCloneList) {
+        if (TiengViet.parse(item.pathFile?.split("/").last.toLowerCase() ?? '')
+            .contains(TiengViet.parse(keySearch.toLowerCase()))) {
+          publicSearchCurrentList.add(item);
+        }
+      }
+      setState(() => publicSearchCurrentList = publicSearchCurrentList);
+    }
+  }
+
+  void searchPrivateList(String keySearch) {
+    setState(() {
+      isFirstPrivate = true;
+    });
+    if (keySearch.trim() == "") {
+      setState(() => privateSearchCurrentList = privateCloneList);
+    } else {
+      setState(() => privateSearchCurrentList = []);
+      for (var item in privateCloneList) {
+        if (TiengViet.parse(item.pathFile?.split("/").last.toLowerCase() ?? '')
+            .contains(TiengViet.parse(keySearch.toLowerCase()))) {
+          privateSearchCurrentList.add(item);
+        }
+      }
+      setState(() => privateSearchCurrentList = privateSearchCurrentList);
+    }
+  }
+
+  Center buildAuthenWidget(DashboardState state) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 15),
+            child: Text(
+              'Unlock to see private files',
+              style: TextStyle(
+                  color: state.isNight ? Colors.white : Colors.black,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold),
+            ),
+          ),
+          InkWell(
+            onTap: () async {
+              try {
+                bool pass = await auth.authenticate(
+                    localizedReason: 'Authenticate with pattern/pin/passcode',
+                    biometricOnly: false);
+                if (pass) {
+                  msg = "You are Authenticated.";
+                  setState(() {
+                    isAuthen = true;
+                  });
+                }
+              } on PlatformException catch (ex) {
+                msg = "Error while opening fingerprint/face scanner";
+              }
+            },
+            child: Image.asset(
+              "assets/fingerprint-2.png",
+              height: 75,
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget buildPublicListView(List<dynamic> pdfListBox, DashboardState state) {
+    return pdfListBox.length != 0
+        ? ListView.builder(
+            padding: EdgeInsets.all(0),
+            itemCount: pdfListBox.length,
+            itemBuilder: (BuildContext context, int index) {
+              final pdfItem = pdfListBox[index] as PDFModel;
+              publicCloneList[index].currentIndex = index;
+              return InkWell(
+                onTap: () async {
+                  closeSearch();
+                  await Slidable.of(context)?.close();
+                  bool isExists = await File(pdfItem.pathFile ?? '').exists();
+                  if (!isExists) {
+                    buildNotFoundDialog(index, pdfItem, true);
+                    return;
+                  }
+                  var linkResult = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ViewFileMain(
+                              isNightMode: state.isNight,
+                              fileKyTen: pdfItem.pathFile ?? '',
+                              isKySo: true,
+                              isUseMauChuKy: true,
+                              isPublic: tabController.index == 0,
+                            )),
+                  );
+                  await _updateItem(
+                      pdfModel: PDFModel(
+                          pathFile: linkResult,
+                          currentIndex: pdfItem.currentIndex,
+                          timeOpen: DateTime.now(),
+                          isOpen: pdfItem.isOpen,
+                          isEdit: pdfItem.isEdit == false
+                              ? linkResult == pdfItem.pathFile
+                                  ? false
+                                  : true
+                              : pdfItem.isEdit ?? false),
+                      index: index);
+                  if (linkResult != pdfItem.pathFile) bloc.setupTotalData();
+                },
+                child: AnimationConfiguration.synchronized(
+                  duration: Duration(milliseconds: 1000),
+                  child: SlideAnimation(
+                    duration: Duration(milliseconds: 600),
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10.0),
+                        child: Slidable(
+                          enabled: false,
+                          key: const ValueKey(0),
+                          closeOnScroll: false,
+                          endActionPane: ActionPane(
+                            extentRatio: 0.60,
+                            motion: DrawerMotion(),
+                            children: [
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) async {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  await ShareExtend.share(
+                                      pdfItem.pathFile ?? '', "file");
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(151, 116, 247, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.share,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Share',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  buildPrivateDialog(
+                                      index,
+                                      pdfItem.currentIndex ?? 0,
+                                      pdfItem,
+                                      true,
+                                      false);
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(134, 88, 249, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.lock,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Private',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  buildRemoveDialog(
+                                      index, 0, pdfItem, true, false);
+                                },
+                                backgroundColor: Color(0xFFFE4A49),
+                                foregroundColor: Colors.white,
+                                icon: Icons.delete,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Delete',
+                              ),
+                            ],
+                          ),
+                          child: Builder(builder: (ctx) {
+                            if (pdfItem.isOpen != null &&
+                                pdfItem.isOpen == false) {
+                              Slidable.of(ctx)?.close();
+                            } else if (isFirstSlide) {
+                              Slidable.of(ctx)?.openEndActionPane();
+                            }
+                            return Container(
+                              height: 57,
+                              decoration: BoxDecoration(
+                                color: state.isNight
+                                    ? Colors.grey[100]
+                                    : Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color.fromRGBO(151, 116, 247, 0.3),
+                                    blurRadius: 4,
+                                    offset: Offset(4, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        left: 5, right: 7),
+                                    child: Container(
+                                        height: 40,
+                                        width: 40,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                              colors: [
+                                                Color.fromRGBO(
+                                                    251, 173, 254, 0.5),
+                                                Color.fromRGBO(
+                                                    250, 157, 254, 0.75),
+                                                Color.fromRGBO(
+                                                    250, 127, 253, 0.85),
+                                                Color.fromRGBO(
+                                                    255, 109, 255, 0.86),
+                                              ],
+                                              begin: const FractionalOffset(
+                                                  0.0, 0.0),
+                                              end: const FractionalOffset(
+                                                  0.2, 0.9),
+                                              stops: [0.0, 0.5, 0.75, 1.0],
+                                              tileMode: TileMode.clamp),
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          boxShadow: [
+                                            BoxShadow(
+                                                color: Color.fromRGBO(
+                                                    249, 95, 254, 0.2),
+                                                blurRadius: 2,
+                                                offset: Offset(1, 1))
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          child: BackdropFilter(
+                                            child: Stack(
+                                                alignment:
+                                                    Alignment.bottomRight,
+                                                children: [
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            5.0),
+                                                    child: Image.asset(
+                                                      "assets/file-format.png",
+                                                      height: 50,
+                                                    ),
+                                                  ),
+                                                  pdfItem.isEdit ?? false
+                                                      ? Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                      .only(
+                                                                  right: 2.0,
+                                                                  bottom: 9.0),
+                                                          child: Container(
+                                                              color: Colors
+                                                                  .blue[400],
+                                                              child: Padding(
+                                                                padding: const EdgeInsets
+                                                                        .symmetric(
+                                                                    horizontal:
+                                                                        0.8,
+                                                                    vertical:
+                                                                        1.0),
+                                                                child: Text(
+                                                                    "Edited",
+                                                                    style: TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight
+                                                                                .bold,
+                                                                        color: Colors
+                                                                            .white,
+                                                                        fontSize:
+                                                                            6.8)),
+                                                              )),
+                                                        )
+                                                      : SizedBox(),
+                                                ]),
+                                            filter: ImageFilter.blur(
+                                                sigmaX: 0.5, sigmaY: 0.5),
+                                          ),
+                                        )),
+                                  ),
+                                  Expanded(
+                                      child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 2.0),
+                                        child: Text(
+                                            pdfItem.pathFile?.split("/").last ??
+                                                '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style:
+                                                TextStyle(color: Colors.black)),
+                                      ),
+                                      Text(
+                                        FormatDateAndTime
+                                            .convertDatetoStringWithFormat(
+                                                pdfItem.timeOpen ??
+                                                    DateTime.now(),
+                                                'hh:mm dd/MM/yyyy'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style:
+                                            TextStyle(color: Colors.grey[600]),
+                                      )
+                                    ],
+                                  )),
+                                  IconButton(
+                                      splashColor: Colors.transparent,
+                                      highlightColor: Colors.transparent,
+                                      onPressed: () async {
+                                        isFirstSlide = true;
+                                        Slidable.of(ctx)
+                                                    ?.animation
+                                                    .isCompleted ==
+                                                true
+                                            ? Slidable.of(ctx)?.close()
+                                            : Slidable.of(ctx)
+                                                ?.openEndActionPane();
+                                        if (pdfItem.isOpen != null &&
+                                            pdfItem.isOpen == true) {
+                                          await handleCloseAllList(pdfListBox);
+                                        } else {
+                                          handleList(
+                                              pdfListBox, index, pdfItem);
+                                        }
+                                      },
+                                      icon: Icon(Icons.more_horiz_rounded,
+                                          size: 20))
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          )
+        : buildEmptyPublish();
+  }
+
+  Future<void> handleCloseAllList(List<dynamic> pdfListBox) async {
+    for (var i = 0; i < pdfListBox.length; i++) {
+      var pdfItem = pdfListBox[i] as PDFModel;
+      await _updateItem(
+          pdfModel: PDFModel(
+              pathFile: pdfItem.pathFile,
+              timeOpen: pdfItem.timeOpen,
+              currentIndex: pdfItem.currentIndex,
+              isEdit: pdfItem.isEdit,
+              isOpen: false),
+          index: i);
+    }
+  }
+
+  void handleList(List<dynamic> pdfListBox, int index, PDFModel pdfItem) async {
+    for (var i = 0; i < pdfListBox.length; i++) {
+      var pdfItem = pdfListBox[i] as PDFModel;
+      await _updateItem(
+          pdfModel: PDFModel(
+              pathFile: pdfItem.pathFile,
+              timeOpen: pdfItem.timeOpen,
+              isEdit: pdfItem.isEdit,
+              currentIndex: pdfItem.currentIndex,
+              isOpen: index == i ? true : false),
+          index: i);
+    }
+  }
+
+  Widget buildPublicSearchListView(
+      List<PDFModel> pdfListBox, DashboardState state) {
+    return pdfListBox.length != 0
+        ? ListView.builder(
+            padding: EdgeInsets.all(0),
+            itemCount: pdfListBox.length,
+            itemBuilder: (BuildContext context, int index) {
+              final pdfItem = pdfListBox[index];
+              return InkWell(
+                onTap: () async {
+                  closeSearch();
+                  Slidable.of(context)?.close();
+                  bool isExists = await File(pdfItem.pathFile ?? '').exists();
+                  if (!isExists) {
+                    buildNotFoundDialog(index, pdfItem, true);
+                    return;
+                  }
+                  var linkResult = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ViewFileMain(
+                              isNightMode: state.isNight,
+                              fileKyTen: pdfItem.pathFile ?? '',
+                              isKySo: true,
+                              isUseMauChuKy: true,
+                              isPublic: tabController.index == 0,
+                            )),
+                  );
+                  setState(() => publicSearchCurrentList[index] = PDFModel(
+                      pathFile: linkResult,
+                      timeOpen: DateTime.now(),
+                      currentIndex:
+                          publicSearchCurrentList[index].currentIndex));
+
+                  await _updateItem(
+                      pdfModel: PDFModel(
+                          pathFile: linkResult,
+                          timeOpen: DateTime.now(),
+                          currentIndex: pdfItem.currentIndex,
+                          isEdit: pdfItem.isEdit,
+                          isOpen: pdfItem.isOpen),
+                      index: publicSearchCurrentList[index].currentIndex ?? 0);
+                },
+                child: AnimationConfiguration.synchronized(
+                  duration: Duration(milliseconds: 1000),
+                  child: SlideAnimation(
+                    duration: Duration(milliseconds: 600),
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10.0),
+                        child: Slidable(
+                          enabled: false,
+                          key: const ValueKey(0),
+                          closeOnScroll: false,
+                          endActionPane: ActionPane(
+                            extentRatio: 0.60,
+                            motion: DrawerMotion(),
+                            children: [
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) async {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  await ShareExtend.share(
+                                      pdfItem.pathFile ?? '', "file");
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(151, 116, 247, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.share,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Share',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  buildPrivateDialog(
+                                      index,
+                                      pdfItem.currentIndex ?? 0,
+                                      pdfItem,
+                                      true,
+                                      true);
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(134, 88, 249, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.lock,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Private',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  buildRemoveDialog(pdfItem.currentIndex ?? 0,
+                                      index, pdfItem, true, true);
+                                },
+                                backgroundColor: Color(0xFFFE4A49),
+                                foregroundColor: Colors.white,
+                                icon: Icons.delete,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Delete',
+                              ),
+                            ],
+                          ),
+                          child: Builder(builder: (ctx) {
+                            return Container(
+                              height: 57,
+                              decoration: BoxDecoration(
+                                color: state.isNight
+                                    ? Colors.grey[100]
+                                    : Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color.fromRGBO(151, 116, 247, 0.3),
+                                    blurRadius: 4,
+                                    offset: Offset(4, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        left: 5, right: 7),
+                                    child: Container(
+                                        height: 40,
+                                        width: 40,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                              colors: [
+                                                Color.fromRGBO(
+                                                    251, 173, 254, 0.5),
+                                                Color.fromRGBO(
+                                                    250, 157, 254, 0.75),
+                                                Color.fromRGBO(
+                                                    250, 127, 253, 0.85),
+                                                Color.fromRGBO(
+                                                    255, 109, 255, 0.86),
+                                              ],
+                                              begin: const FractionalOffset(
+                                                  0.0, 0.0),
+                                              end: const FractionalOffset(
+                                                  0.2, 0.9),
+                                              stops: [0.0, 0.5, 0.75, 1.0],
+                                              tileMode: TileMode.clamp),
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          boxShadow: [
+                                            BoxShadow(
+                                                color: Color.fromRGBO(
+                                                    249, 95, 254, 0.2),
+                                                blurRadius: 2,
+                                                offset: Offset(1, 1))
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          child: BackdropFilter(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(5.0),
+                                              child: Image.asset(
+                                                "assets/file-format.png",
+                                                height: 50,
+                                              ),
+                                            ),
+                                            filter: ImageFilter.blur(
+                                                sigmaX: 0.5, sigmaY: 0.5),
+                                          ),
+                                        )),
+                                  ),
+                                  Expanded(
+                                      child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 2.0),
+                                        child: Text(
+                                            pdfItem.pathFile?.split("/").last ??
+                                                '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style:
+                                                TextStyle(color: Colors.black)),
+                                      ),
+                                      Text(
+                                        FormatDateAndTime
+                                            .convertDatetoStringWithFormat(
+                                                pdfItem.timeOpen ??
+                                                    DateTime.now(),
+                                                'hh:mm dd/MM/yyyy'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style:
+                                            TextStyle(color: Colors.grey[600]),
+                                      )
+                                    ],
+                                  )),
+                                  IconButton(
+                                      splashColor: Colors.transparent,
+                                      highlightColor: Colors.transparent,
+                                      onPressed: () {
+                                        isFirstSlide = true;
+                                        Slidable.of(ctx)
+                                                    ?.animation
+                                                    .isCompleted ==
+                                                true
+                                            ? Slidable.of(ctx)?.close()
+                                            : Slidable.of(ctx)
+                                                ?.openEndActionPane();
+                                      },
+                                      icon: Icon(Icons.more_horiz_rounded,
+                                          size: 20))
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          )
+        : buildEmptyPublish();
+  }
+
+  void buildNotFoundDialog(int index, PDFModel pdfItem, bool isPublic) {
+    showDialog(
+        context: context,
+        builder: (_) => new AlertDialog(
+            actionsPadding: EdgeInsets.zero,
+            actionsOverflowButtonSpacing: 0.0,
+            titlePadding:
+                EdgeInsets.only(bottom: 0.0, left: 8.0, right: 8.0, top: 8.0),
+            title: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Container(
+                          width: 60,
+                          child: Image.asset('assets/no-results.png'))),
+                  new Text(
+                    "The file link does not exist, please check the path",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            actions: listNotFoundAction(
+                contextGobal: context,
+                index: index,
+                pdfItem: pdfItem,
+                isPublic: isPublic)));
+  }
+
+  void buildPrivateDialog(int index, int indexSearch, PDFModel pdfItem,
+      bool isPublic, bool isSearch) {
+    showDialog(
+        context: context,
+        builder: (_) => new AlertDialog(
+            actionsPadding: EdgeInsets.zero,
+            actionsOverflowButtonSpacing: 0.0,
+            titlePadding:
+                EdgeInsets.only(bottom: 0.0, left: 8.0, right: 8.0, top: 8.0),
+            title: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Container(
+                          width: 60,
+                          child: Image.asset('assets/lock_confirm.gif'))),
+                  new Text(
+                    isPublic
+                        ? "Are you sure you want to make this file private?"
+                        : "Are you sure you want to make this file public?",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            actions: listAction(
+                contextGobal: context,
+                index: index,
+                indexSearch: indexSearch,
+                pdfItem: pdfItem,
+                isPublic: isPublic,
+                isSearch: isSearch)));
+  }
+
+  void buildRemoveDialog(int index, int indexSearch, PDFModel pdfModel,
+      bool isPublic, bool isSearch) {
+    showDialog(
+        context: context,
+        builder: (_) => new AlertDialog(
+            actionsPadding: EdgeInsets.zero,
+            actionsOverflowButtonSpacing: 0.0,
+            titlePadding:
+                EdgeInsets.only(bottom: 0.0, left: 8.0, right: 8.0, top: 8.0),
+            title: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Container(
+                          width: 60, child: Image.asset('assets/bin.gif'))),
+                  new Text(
+                    "Are you sure you want to delete this file?",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            actions: listDeleteAction(
+                contextGobal: context,
+                index: index,
+                indexSearch: indexSearch,
+                pdfModel: pdfModel,
+                isPublic: isPublic,
+                isSearch: isSearch)));
+  }
+
+  List<Widget> listDeleteAction(
+      {contextGobal,
+      required int index,
+      required int indexSearch,
+      required PDFModel pdfModel,
+      required bool isPublic,
+      required bool isSearch}) {
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 2.0),
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).pop();
+            isPublic ? _deleteItemList(index) : _deleteItemPrivateList(index);
+            if (isSearch && isPublic) {
+              setState(() {
+                publicSearchCurrentList.removeAt(indexSearch);
+              });
+            } else if (isSearch && !isPublic) {
+              setState(() {
+                privateSearchCurrentList.removeAt(indexSearch);
+              });
+            }
+          },
+          child: Container(
+              decoration: BoxDecoration(
+                color: Color.fromRGBO(51, 204, 204, 1.0),
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 25.0),
+                child: Text(
+                  'Sure',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+              )),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 20.0),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              )),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> listAction(
+      {contextGobal,
+      required int index,
+      required int indexSearch,
+      required PDFModel pdfItem,
+      required bool isPublic,
+      required bool isSearch}) {
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 2.0),
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).pop();
+            if (isSearch) {
+              if (isPublic) {
+                privateFile(index);
+                addPrivateItem(pdfItem);
+                setState(() => publicSearchCurrentList.removeAt(indexSearch));
+              } else {
+                publicFile(index);
+                addPublicItem(pdfItem);
+                setState(() => privateSearchCurrentList.removeAt(indexSearch));
+              }
+            } else {
+              if (isPublic) {
+                privateFile(indexSearch);
+                addPrivateItem(pdfItem);
+              } else {
+                publicFile(indexSearch);
+                addPublicItem(pdfItem);
+              }
+            }
+          },
+          child: Container(
+              decoration: BoxDecoration(
+                color: Color.fromRGBO(51, 204, 204, 1.0),
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 25.0),
+                child: Text(
+                  'Sure',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+              )),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 20.0),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              )),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> listNotFoundAction(
+      {contextGobal,
+      required int index,
+      required PDFModel pdfItem,
+      required bool isPublic}) {
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 2.0),
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).pop();
+            if (isPublic) {
+              _deleteItemList(index);
+            } else {
+              _deleteItemPrivateList(index);
+            }
+          },
+          child: Container(
+              decoration: BoxDecoration(
+                color: Color.fromRGBO(51, 204, 204, 1.0),
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 25.0),
+                child: Text(
+                  'Delete',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+              )),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.all(Radius.circular(5.0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.6),
+                    blurRadius: 5,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 32.0),
+                child: Text(
+                  'OK',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              )),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> privateFile(int index) async {
+    Flushbar(
+      messageText: Text("Your pdf file has been made private!",
+          style: TextStyle(color: Colors.white)),
+      icon: Icon(Icons.privacy_tip_outlined, color: Colors.lightBlue[50]),
+      backgroundColor: Color.fromRGBO(51, 204, 204, 1.0),
+      flushbarPosition: FlushbarPosition.TOP,
+      duration: Duration(milliseconds: 1700),
+    )..show(context);
+    await Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (BuildContext ct, _, __) => LockPage(
+        ctx: context,
+      ),
+    ));
+    _deleteItemList(index);
+  }
+
+  Future<void> publicFile(int index) async {
+    Flushbar(
+      messageText: Text("Your pdf file has been made public!",
+          style: TextStyle(color: Colors.white)),
+      icon: Icon(Icons.privacy_tip_outlined, color: Colors.lightBlue[50]),
+      backgroundColor: Color.fromRGBO(51, 204, 204, 1.0),
+      flushbarPosition: FlushbarPosition.TOP,
+      duration: Duration(milliseconds: 1700),
+    )..show(context);
+    await Navigator.of(context).push(PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (BuildContext ct, _, __) => LockPage(
+        ctx: context,
+      ),
+    ));
+    _deleteItemPrivateList(index);
+  }
+
   Future<void> onClickMenu(
       MenuItemProvider item, int index, DashboardState state) async {
     switch (item.menuTitle) {
       case ' Private':
-        _removeAllItems(state);
-        await Future.delayed(Duration(milliseconds: 400));
-        setState(() {
-          isAuthen = false;
-          bloc.formKeyList = bloc.newPrivateFileLst;
-        });
-
+        setState(() => isAuthen = false);
         break;
-
+      case 'Contact':
+        launch('mailto:tainguyen0897@gmail.com?subject=PDF Editor App');
+        break;
       default:
         controller.isCompleted ? controller.reverse() : controller.forward();
         bloc.onChangeDay();
@@ -356,53 +1479,28 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
-  // void getFiles() async {
-  //   //asyn function to get list of files
-  //   List<StorageInfo> storageInfo = await PathProviderEx.getStorageInfo();
-  //   var root = storageInfo[0].
-  //       .rootDir; //storageInfo[1] for SD card, geting the root directory
-  //   var fm = FileManager(root: Directory(root)); //
-  //   var files = await fm.filesTree(
-  //       excludedPaths: ["/storage/emulated/0/Android"],
-  //       extensions: ["pdf"] //optional, to filter files, list only pdf files
-  //       );
-  //   setState(() {}); //update the UI
-  // }
-
-  void scanFile() => fetchBooks();
-
-  List<File> bookList = [];
-
-  fetchBooks() async {
-    var rootPath = await getDownloadPath();
-
-    filesInDirectory(Directory(rootPath!));
-    // if (rootPath != null) {
-    //   var docassets = Directory(rootPath)
-    //       .listSync(recursive: false, followLinks: false)
-    //       .where((e) => e is File);
-    //   for (FileSystemEntity asset in docassets) {
-    //     if (asset is File) {
-    //       String name = path.basename(asset.path);
-    //       if (name.endsWith('.pdf') || name.endsWith('.PDF')) {
-    //         File? file = asset.absolute;
-    //         bookList.add(file);
-    //       }
-    //     }
-    //   }
-    // }
-  }
-
-  Future<List<File>> filesInDirectory(Directory dir) async {
-    List<File> files = <File>[];
-    await for (FileSystemEntity entity
-        in dir.list(recursive: false, followLinks: true)) {
-      FileSystemEntityType type = await FileSystemEntity.type(entity.path);
-      if (type == FileSystemEntityType.FILE) {
-        print(entity.path);
+  Future<List<File>> fetchListSuggest({required String? pathFolder}) async {
+    List<File> suggestPDFlst = [];
+    try {
+      if (pathFolder != null) {
+        var docassets = Directory(pathFolder)
+            .listSync(recursive: false, followLinks: false)
+            .where((e) => e is File);
+        for (FileSystemEntity asset in docassets) {
+          if (asset is File) {
+            String name = path.basename(asset.path);
+            if (name.endsWith('.pdf') || name.endsWith('.PDF')) {
+              File? file = asset.absolute;
+              suggestPDFlst.add(file);
+            }
+          }
+        }
       }
+      return suggestPDFlst;
+    } catch (e) {
+      print(fetchListSuggest);
+      return suggestPDFlst;
     }
-    return files;
   }
 
   Future<String?> getDownloadPath() async {
@@ -422,16 +1520,21 @@ class _DashboardPageState extends State<DashboardPage>
     return directory?.path;
   }
 
-  void _removeAllItems(DashboardState state) {
-    final length = bloc.formKeyList.length;
-    for (int i = length - 1; i >= 0; i--) {
-      bloc.newPrivateFileLst.add(bloc.formKeyList[i]);
-      GlobalObjectKey<FormState> removedItem = bloc.formKeyList.removeAt(i);
-      AnimatedListRemovedItemBuilder builder = (context, animation) {
-        return _buildItem(animation, state, removedItem);
-      };
-      _listKey.currentState?.removeItem(i, builder);
+  Future<String?> getDownloadZaloPath() async {
+    Directory? directory;
+    try {
+      if (Platform.isIOS) {
+        directory = await getApplicationDocumentsDirectory();
+      } else {
+        directory = Directory('/storage/emulated/0/Download/Zalo');
+        // Put file in global download folder, if for an unknown reason it didn't exist, we fallback
+        if (!await directory.exists())
+          directory = await getExternalStorageDirectory();
+      }
+    } catch (err, stack) {
+      print("Cannot get download zalo folder path");
     }
+    return directory?.path;
   }
 
   void optionMenu(
@@ -444,9 +1547,7 @@ class _DashboardPageState extends State<DashboardPage>
           itemWidth: 125,
         ),
         items: [],
-        onClickMenu: (item, index) {
-          onClickMenu(item, index, state);
-        },
+        onClickMenu: (item, index) => onClickMenu(item, index, state),
         index: 0,
         isHorizonal: false);
     isAuthen
@@ -466,6 +1567,14 @@ class _DashboardPageState extends State<DashboardPage>
                 image: Image.asset(
                   "assets/folder-2.png",
                   height: 16,
+                )),
+            MenuItem.forList(
+                title: 'Contact',
+                textAlign: TextAlign.center,
+                textStyle: TextStyle(color: Colors.white),
+                image: Image.asset(
+                  "assets/customer-service.png",
+                  height: 22,
                 ))
           ]
         : menu.items = [
@@ -477,6 +1586,14 @@ class _DashboardPageState extends State<DashboardPage>
                   "assets/day-and-night.png",
                   height: 20,
                 )),
+            MenuItem.forList(
+                title: 'Contact',
+                textAlign: TextAlign.center,
+                textStyle: TextStyle(color: Colors.white),
+                image: Image.asset(
+                  "assets/customer-service.png",
+                  height: 22,
+                ))
           ];
 
     menu.show(widgetKey: btnKey);
@@ -502,95 +1619,458 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget buildCarousel() {
-    return CarouselSlider(
-        items: [
-          buildTotalFile(),
-        ],
-        options: CarouselOptions(
-            autoPlayInterval: Duration(seconds: 5),
-            disableCenter: true,
-            enableInfiniteScroll: true,
-            initialPage: 0,
-            viewportFraction: 0.85,
-            onPageChanged: (index, reason) {}));
-  }
-
-  Widget buildTotalFile() {
+  Widget buildTotalFile(DashboardState state) {
     return Padding(
       padding:
-          const EdgeInsets.only(top: 15, bottom: 10, left: 25.0, right: 25.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 76,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [
-                      Color.fromRGBO(255, 255, 255, 1.0),
-                      Color.fromRGBO(255, 255, 255, 1.0),
-                    ],
-                    begin: const FractionalOffset(0.0, 0.0),
-                    end: const FractionalOffset(0.2, 0.9),
-                    stops: [0.0, 1.0],
-                    tileMode: TileMode.clamp),
-                borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    blurRadius: 5,
-                    offset: Offset(3, 5), // Shadow position
+          const EdgeInsets.only(top: 10, bottom: 10, left: 17.0, right: 25.0),
+      child: Container(
+        height: 90.0,
+        child: Row(
+          children: [
+            Expanded(
+                child: CarouselSlider(
+                    items: [
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    child: buildInfoApp(state),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    child: buildImageInfo(state),
                   ),
                 ],
-              ),
-              child: Padding(
-                  padding: const EdgeInsets.all(10.0), child: buildPieChart()),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 10.0),
-            child: AnimatedSize(
-              curve: Curves.bounceInOut,
-              vsync: this,
-              duration: new Duration(milliseconds: 200),
-              child: InkWell(
-                onTap: () => customModalBottomSheet(context,
-                    isFile: true, isUrl: true, fFile: () {
-                  showMediaSelection(
-                      index: 0,
-                      context: context,
-                      loaiChucNangDinhKem: MediaLoaiChucNangDinhKem.File);
-                  scanFile();
-                }, fUrl: () {}),
-                child: Container(
-                    width: tabController.index == 0 ? 62 : 0,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: Color.fromRGBO(255, 230, 226, 1),
-                      borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.3),
-                          blurRadius: 5,
-                          offset: Offset(3, 5), // Shadow position
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15.0),
-                      child: Image.asset(
-                        "assets/add.png",
-                        // fit: BoxFit.cover,
-                        width: 55,
+                    options: CarouselOptions(
+                      autoPlayInterval: Duration(seconds: 15),
+                      autoPlay: true,
+                      enableInfiniteScroll: true,
+                      initialPage: 0,
+                      viewportFraction: 1.0,
+                    ))),
+            Padding(
+              padding: const EdgeInsets.only(left: 5.0),
+              child: AnimatedSize(
+                curve: Curves.bounceInOut,
+                vsync: this,
+                duration: new Duration(milliseconds: 200),
+                child: InkWell(
+                  onTap: () {
+                    closeSearch();
+                    addFile(state);
+                  },
+                  child: Container(
+                      width: tabController.index == 0 ? 62 : 0,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        color: Color.fromRGBO(255, 230, 226, 1),
+                        borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.3),
+                            blurRadius: 5,
+                            offset: Offset(3, 5),
+                          ),
+                        ],
                       ),
-                    )),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15.0),
+                        child: Image.asset(
+                          "assets/add.png",
+                          width: 55,
+                        ),
+                      )),
+                ),
               ),
-            ),
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
+  }
+
+  InkWell buildInfoApp(DashboardState state) {
+    return InkWell(
+      onTap: () => closeSearch(),
+      child: Container(
+        height: 80,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+              colors: [
+                Color.fromRGBO(255, 255, 255, 1.0),
+                Color.fromRGBO(255, 255, 255, 1.0),
+              ],
+              begin: const FractionalOffset(0.0, 0.0),
+              end: const FractionalOffset(0.2, 0.9),
+              stops: [0.0, 1.0],
+              tileMode: TileMode.clamp),
+          borderRadius: BorderRadius.all(Radius.circular(15.0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.3),
+              blurRadius: 5,
+              offset: Offset(3, 5),
+            ),
+          ],
+        ),
+        child: Padding(
+            padding: const EdgeInsets.all(10.0), child: buildPieChart(state)),
+      ),
+    );
+  }
+
+  Container buildImageInfo(DashboardState state) {
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [
+              Color.fromRGBO(255, 255, 255, 1.0),
+              Color.fromRGBO(255, 255, 255, 1.0),
+            ],
+            begin: const FractionalOffset(0.0, 0.0),
+            end: const FractionalOffset(0.2, 0.9),
+            stops: [0.0, 1.0],
+            tileMode: TileMode.clamp),
+        borderRadius: BorderRadius.all(Radius.circular(15.0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            blurRadius: 5,
+            offset: Offset(3, 5),
+          ),
+        ],
+      ),
+      child: Padding(
+          padding: const EdgeInsets.all(2.0),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(15.0)),
+              color: Colors.blue[100],
+            ),
+            child: ClipRRect(
+                borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                child: Container(
+                  height: 80,
+                  width: double.infinity,
+                  child: InkWell(
+                      onTap: () {
+                        closeSearch();
+                        addFile(state);
+                      },
+                      child: futureBuild()),
+                )),
+          )),
+    );
+  }
+
+  void addFile(state) {
+    customModalBottomSheet(context, isFile: true, isUrl: true, fFile: () async {
+      // Close bottomsheet
+      Navigator.pop(context);
+      // Check permission storage
+      var isPermission = await getPermission();
+      // Show Dialog
+
+      showDialogAddFile(
+          onResult: (data) async {
+            var pathFile = data.keys.toString();
+            var subLink = pathFile.substring(1, pathFile.length - 1);
+            await Future.delayed(Duration(milliseconds: 20));
+            var linkResultFile = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => ViewFileMain(
+                        isNightMode: state.isNight,
+                        isUrl: false,
+                        fileKyTen: subLink,
+                        isKySo: true,
+                        isUseMauChuKy: true,
+                        isPublic: tabController.index == 0,
+                      )),
+            );
+            addPublicItem(PDFModel(
+                pathFile: linkResultFile,
+                timeOpen: DateTime.now(),
+                isOpen: linkResultFile == subLink));
+          },
+          isPermission: isPermission,
+          isNightMode: state.isNight);
+    }, fUrl: () {
+      Navigator.pop(context);
+      showGetLinkDialog(
+          ctx: context,
+          isRealModalBottom: false,
+          title: "Pick File",
+          isDownloadFolder: isDownloadFolder,
+          isZalo: isZalo,
+          onResult: (url) async {
+            var path = url.keys.toString();
+            var subLink = pathFile.substring(1, path.length - 1);
+            Navigator.pop(context);
+            var linkResult = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => ViewFileMain(
+                        isNightMode: state.isNight,
+                        isUrl: true,
+                        fileKyTen: subLink,
+                        isKySo: true,
+                        isUseMauChuKy: true,
+                        isPublic: tabController.index == 0,
+                      )),
+            );
+            if (linkResult != 'error') {
+              addPublicItem(PDFModel(
+                pathFile: linkResult,
+                timeOpen: DateTime.now(),
+              ));
+            }
+          });
+    });
+  }
+
+  Row futureBuild() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Image.asset(
+              'assets/pdf_header.png',
+              fit: BoxFit.cover,
+              width: 45,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 10.0, bottom: 6.0),
+              child: Container(
+                  color: Color.fromRGBO(243, 234, 230, 1),
+                  child: Image.asset(
+                    'assets/pencil-3.png',
+                    fit: BoxFit.cover,
+                    width: 23,
+                  )),
+            )
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Image.asset(
+                'assets/pdf_header.png',
+                fit: BoxFit.cover,
+                width: 45,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 7.0, bottom: 5.0),
+                child: Container(
+                    color: Color.fromRGBO(243, 234, 230, 1),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4, right: 5),
+                      child: Image.asset(
+                        'assets/add_image.png',
+                        fit: BoxFit.cover,
+                        width: 20,
+                      ),
+                    )),
+              )
+            ],
+          ),
+        ),
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Image.asset(
+              'assets/pdf_header.png',
+              fit: BoxFit.cover,
+              width: 45,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0, bottom: 6.0),
+              child: Container(
+                  color: Color.fromRGBO(243, 234, 230, 1),
+                  child: Image.asset(
+                    'assets/tools.png',
+                    fit: BoxFit.cover,
+                    width: 20,
+                  )),
+            )
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<bool> getPermission() async {
+    if (countPermis == null || countPermis == 0) {
+      if (await Permission.manageExternalStorage.isGranted) {
+        return true;
+      } else {
+        var permission = await Permission.manageExternalStorage.request();
+        await conutPermissBox.put('count', 1);
+        if (permission.isGranted) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+    } else {
+      return await Permission.manageExternalStorage.isGranted;
+    }
+  }
+
+  void showDialogAddFile(
+      {Function(Map<String, String>)? onResult,
+      required bool isPermission,
+      required bool isNightMode}) async {
+    List<Map<String, String>> listMap = [];
+    List<File> suggestList = [];
+    if (isPermission) {
+      var rootDownloadPath = await getDownloadPath();
+      var downloadList = await fetchListSuggest(pathFolder: rootDownloadPath);
+      ///////
+      var rootZaloPath = await getDownloadZaloPath();
+      var zaloList = await fetchListSuggest(pathFolder: rootZaloPath);
+      ///////
+      suggestList = new List.from(downloadList)..addAll(zaloList);
+      await addSuggestList(listChucNang: suggestList)
+          .then((value) => listMap = value);
+      isZalo = false;
+      isDownloadFolder = false;
+      for (var item in suggestList) {
+        if (item.path != "" && item.path.contains("/Zalo")) {
+          isZalo = true;
+        } else if (item.path != "" && item.path.contains("/Download")) {
+          isDownloadFolder = true;
+        }
+      }
+    }
+
+    showDialogAddFilePickerCustom(
+        ctx: context,
+        isRealModalBottom: false,
+        listData: listMap,
+        title: "Pick File",
+        onResult: onResult,
+        isDownloadFolder: isDownloadFolder,
+        isZalo: isZalo,
+        isAccess: isPermission,
+        isNightMode: isNightMode,
+        isWarning: countPermis == null || countPermis == 0 ? true : false);
+
+    countPermis = conutPermissBox.get('count');
+  }
+
+  Future<List<Map<String, String>>> addSuggestList(
+      {List<File>? listChucNang}) async {
+    List<Map<String, String>> listMapNew = [];
+    if (listChucNang!.length > 0) {
+      listMapNew.clear();
+      for (int i = 0; i < listChucNang.length; i++) {
+        listMapNew
+            .add({listChucNang[i].path: listChucNang[i].path.split("/").last});
+      }
+    }
+    return listMapNew;
+  }
+
+  void showDialogAddFilePickerCustom(
+      {List<Map<String, String>>? listData,
+      String? title,
+      BuildContext? ctx,
+      bool? isRealModalBottom,
+      List<String>? imageList,
+      required bool isDownloadFolder,
+      required bool isZalo,
+      required bool isAccess,
+      required bool isNightMode,
+      required bool isWarning,
+      Function(Map<String, String>)? onResult}) {
+    Navigator.of(ctx!).push(PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (BuildContext ct, _, __) => PopUpListPicker(
+        isCenter: true,
+        listData: listData,
+        title: title,
+        ctx: ctx,
+        onResult: onResult,
+        imageList: imageList,
+        isDownloadFolder: isDownloadFolder,
+        isZalo: isZalo,
+        onRequsetPermis: () async {
+          var isPermis = await Permission.manageExternalStorage.request();
+          if (isPermis.isGranted) {
+            Navigator.pop(context);
+            // Check permission storage
+            var isPermission = await getPermission();
+            // Show Dialog
+
+            showDialogAddFile(
+                onResult: (data) async {
+                  var pathFile = data.keys.toString();
+                  var subLink = pathFile.substring(1, pathFile.length - 1);
+                  await Future.delayed(Duration(milliseconds: 20));
+                  var linkResultFile = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ViewFileMain(
+                              isNightMode: isNightMode,
+                              isUrl: false,
+                              fileKyTen: subLink,
+                              isKySo: true,
+                              isUseMauChuKy: true,
+                              isPublic: tabController.index == 0,
+                            )),
+                  );
+                  addPublicItem(PDFModel(
+                    pathFile: linkResultFile,
+                    timeOpen: DateTime.now(),
+                  ));
+                },
+                isPermission: isPermission,
+                isNightMode: isNightMode);
+          } else {
+            WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
+                  messageText: Text(
+                      'External storage access is denied, so the list of suggestions will be hidden',
+                      style: TextStyle(color: Colors.white)),
+                  icon: Icon(Icons.warning_amber_rounded,
+                      color: Colors.yellowAccent[100]),
+                  backgroundColor: Colors.yellow[700]!,
+                  flushbarPosition: FlushbarPosition.TOP,
+                  duration: Duration(seconds: 3),
+                )..show(context));
+          }
+        },
+        isAccess: isAccess,
+        isWarning: isWarning,
+      ),
+    ));
+  }
+
+  void showGetLinkDialog(
+      {List<Map<String, String>>? listData,
+      String? title,
+      BuildContext? ctx,
+      bool? isRealModalBottom,
+      List<String>? imageList,
+      required bool isDownloadFolder,
+      required bool isZalo,
+      Function(Map<String, String>)? onResult}) {
+    Navigator.of(ctx!).push(PageRouteBuilder(
+      opaque: false,
+      pageBuilder: (BuildContext ct, _, __) => PopUpLinkPicker(
+        isCenter: true,
+        title: title,
+        ctx: ctx,
+        onResult: onResult,
+      ),
+    ));
   }
 
   Future<void> showMediaSelection({
@@ -624,187 +2104,6 @@ class _DashboardPageState extends State<DashboardPage>
       case MediaLoaiChucNangDinhKem.Video:
         break;
     }
-  }
-
-  ListView buildListViewPublish(DashboardState state) {
-    return ListView.builder(
-        padding: EdgeInsets.only(top: 0),
-        shrinkWrap: true,
-        itemCount: bloc.formKeyList.length,
-        itemBuilder: (context, index) {
-          return InkWell(
-            onTap: () async {
-              var linkResult = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => ViewFileMain(
-                          isNightMode: state.isNight,
-                          fileKyTen: index / 2 == 0
-                              ? 'https://example-files.online-convert.com/document/pdf/example.pdf'
-                              //'https://research.nhm.org/pdfs/10840/10840-001.pdf'
-                              : "https://www.adobe.com/support/products/enterprise/knowledgecenter/media/c4611_sample_explain.pdf",
-                          isKySo: true,
-                          isUseMauChuKy: true,
-                        )),
-              );
-            },
-            child: AnimationConfiguration.synchronized(
-              duration: Duration(milliseconds: 1000),
-              child: SlideAnimation(
-                duration: Duration(milliseconds: 600),
-                child: Padding(
-                  padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10.0),
-                    child: Slidable(
-                      enabled: false,
-                      key: const ValueKey(0),
-                      closeOnScroll: false,
-                      endActionPane: ActionPane(
-                        extentRatio: 0.60,
-                        motion: DrawerMotion(),
-                        children: [
-                          SlidableAction(
-                            flex: 1,
-                            autoClose: true,
-                            onPressed: (context) {},
-                            backgroundColor: Color.fromRGBO(151, 116, 247, 1.0),
-                            foregroundColor: Colors.white,
-                            icon: Icons.share,
-                            spacing: 5,
-                            padding: EdgeInsets.all(0),
-                            label: 'Share',
-                          ),
-                          SlidableAction(
-                            flex: 1,
-                            autoClose: true,
-                            onPressed: (context) {},
-                            backgroundColor: Color.fromRGBO(134, 88, 249, 1.0),
-                            foregroundColor: Colors.white,
-                            icon: Icons.privacy_tip_outlined,
-                            spacing: 5,
-                            padding: EdgeInsets.all(0),
-                            label: 'Private',
-                          ),
-                          SlidableAction(
-                            flex: 1,
-                            autoClose: true,
-                            onPressed: (context) {},
-                            backgroundColor: Color(0xFFFE4A49),
-                            foregroundColor: Colors.white,
-                            icon: Icons.delete,
-                            spacing: 5,
-                            padding: EdgeInsets.all(0),
-                            label: 'Delete',
-                          ),
-                        ],
-                      ),
-                      child: Builder(builder: (ctx) {
-                        return Container(
-                          height: 57,
-                          decoration: BoxDecoration(
-                            color:
-                                state.isNight ? Colors.grey[100] : Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color.fromRGBO(151, 116, 247, 0.3),
-                                blurRadius: 4,
-                                offset: Offset(4, 8),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 5, right: 7),
-                                child: Container(
-                                    height: 40,
-                                    width: 40,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                          colors: [
-                                            Color.fromRGBO(251, 173, 254, 0.5),
-                                            Color.fromRGBO(250, 157, 254, 0.75),
-                                            Color.fromRGBO(250, 127, 253, 0.85),
-                                            Color.fromRGBO(255, 109, 255, 0.95),
-                                          ],
-                                          begin:
-                                              const FractionalOffset(0.0, 0.0),
-                                          end: const FractionalOffset(0.2, 0.9),
-                                          stops: [0.0, 0.5, 0.75, 1.0],
-                                          tileMode: TileMode.clamp),
-                                      borderRadius: BorderRadius.all(
-                                          Radius.circular(5.0)),
-                                      boxShadow: [
-                                        BoxShadow(
-                                            color: Color.fromRGBO(
-                                                249, 95, 254, 0.2),
-                                            blurRadius: 2,
-                                            offset: Offset(1, 1))
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.all(
-                                          Radius.circular(5.0)),
-                                      child: BackdropFilter(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(5.0),
-                                          child: Image.asset(
-                                            "assets/file-format.png",
-                                            height: 50,
-                                          ),
-                                        ),
-                                        filter: ImageFilter.blur(
-                                            sigmaX: 0.5, sigmaY: 0.5),
-                                      ),
-                                    )),
-                              ),
-                              Expanded(
-                                  child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 2.0),
-                                    child: Text(
-                                        'How to Create a circular progressbar in Android',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(color: Colors.black)),
-                                  ),
-                                  Text(
-                                    FormatDateAndTime
-                                        .convertDatetoStringWithFormat(
-                                            DateTime.now(), 'hh:mm dd/MM/yyyy'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: Colors.grey[600]),
-                                  )
-                                ],
-                              )),
-                              IconButton(
-                                  splashColor: Colors.transparent,
-                                  highlightColor: Colors.transparent,
-                                  onPressed: () {
-                                    Slidable.of(ctx)?.animation.isCompleted ==
-                                            true
-                                        ? Slidable.of(ctx)?.close()
-                                        : Slidable.of(ctx)?.openEndActionPane();
-                                  },
-                                  icon:
-                                      Icon(Icons.more_horiz_rounded, size: 20))
-                            ],
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        });
   }
 
   Center buildEmptyPublish() {
@@ -847,183 +2146,487 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  AnimatedList buildListViewPrivate(DashboardState state) {
-    return AnimatedList(
-        padding: EdgeInsets.only(top: 0),
-        key: _listKey,
-        shrinkWrap: true,
-        initialItemCount: bloc.formKeyList.length,
-        itemBuilder: (context, index, animation) {
-          return _buildItem(animation, state, bloc.formKeyList[index]);
-        });
-  }
-
-  SizeTransition _buildItem(Animation<double> animation, DashboardState state,
-      GlobalObjectKey<FormState> removedItem) {
-    return SizeTransition(
-      sizeFactor: animation,
-      child: AnimationConfiguration.synchronized(
-        duration: Duration(milliseconds: 1000),
-        child: SlideAnimation(
-          duration: Duration(milliseconds: 600),
-          child: Padding(
-            padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10.0),
-              child: Slidable(
-                enabled: false,
-                key: const ValueKey(0),
-                closeOnScroll: false,
-                endActionPane: ActionPane(
-                  extentRatio: 0.60,
-                  motion: DrawerMotion(),
-                  children: [
-                    SlidableAction(
-                      flex: 1,
-                      autoClose: true,
-                      onPressed: (context) {},
-                      backgroundColor: Color.fromRGBO(151, 116, 247, 1.0),
-                      foregroundColor: Colors.white,
-                      icon: Icons.share,
-                      spacing: 5,
-                      padding: EdgeInsets.all(0),
-                      label: 'Share',
-                    ),
-                    SlidableAction(
-                      flex: 1,
-                      autoClose: true,
-                      onPressed: (context) {},
-                      backgroundColor: Color.fromRGBO(134, 88, 249, 1.0),
-                      foregroundColor: Colors.white,
-                      icon: Icons.privacy_tip_outlined,
-                      spacing: 5,
-                      padding: EdgeInsets.all(0),
-                      label: 'Private',
-                    ),
-                    SlidableAction(
-                      flex: 1,
-                      autoClose: true,
-                      onPressed: (context) {},
-                      backgroundColor: Color(0xFFFE4A49),
-                      foregroundColor: Colors.white,
-                      icon: Icons.delete,
-                      spacing: 5,
-                      padding: EdgeInsets.all(0),
-                      label: 'Delete',
-                    ),
-                  ],
-                ),
-                child: Builder(builder: (ctx) {
-                  return Container(
-                    height: 57,
-                    decoration: BoxDecoration(
-                      color: state.isNight ? Colors.grey[100] : Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color.fromRGBO(151, 116, 247, 0.3),
-                          blurRadius: 4,
-                          offset: Offset(4, 8),
+  ListView buildListViewPrivate(
+      List<dynamic> privateList, DashboardState state) {
+    return ListView.builder(
+      padding: EdgeInsets.all(0),
+      itemCount: privateList.length,
+      itemBuilder: (BuildContext context, int index) {
+        final pdfItem = privateList[index];
+        privateCloneList[index].currentIndex = index;
+        return InkWell(
+          onTap: () async {
+            closeSearch();
+            Slidable.of(context)?.close();
+            var linkResult = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => ViewFileMain(
+                        isNightMode: state.isNight,
+                        fileKyTen: pdfItem.pathFile ?? '',
+                        isKySo: true,
+                        isUseMauChuKy: true,
+                        isPublic: tabController.index == 0,
+                      )),
+            );
+            await _updatePrivateItem(
+                pdfModel: PDFModel(
+                    pathFile: linkResult,
+                    currentIndex: pdfItem.currentIndex,
+                    timeOpen: DateTime.now(),
+                    isOpen: pdfItem.isOpen,
+                    isEdit: pdfItem.isEdit == false
+                        ? linkResult == pdfItem.pathFile
+                            ? false
+                            : true
+                        : pdfItem.isEdit ?? false),
+                index: index);
+          },
+          child: AnimationConfiguration.synchronized(
+            duration: Duration(milliseconds: 1000),
+            child: SlideAnimation(
+              duration: Duration(milliseconds: 600),
+              child: Padding(
+                padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10.0),
+                  child: Slidable(
+                    enabled: false,
+                    key: const ValueKey(0),
+                    closeOnScroll: false,
+                    endActionPane: ActionPane(
+                      extentRatio: 0.60,
+                      motion: DrawerMotion(),
+                      children: [
+                        SlidableAction(
+                          flex: 1,
+                          autoClose: true,
+                          onPressed: (context) async {
+                            closeSearch();
+                            Slidable.of(context)?.close();
+                            await ShareExtend.share(
+                                pdfItem.pathFile ?? '', "file");
+                          },
+                          backgroundColor: Color.fromRGBO(151, 116, 247, 1.0),
+                          foregroundColor: Colors.white,
+                          icon: Icons.share,
+                          spacing: 5,
+                          padding: EdgeInsets.all(0),
+                          label: 'Share',
+                        ),
+                        SlidableAction(
+                          flex: 1,
+                          autoClose: true,
+                          onPressed: (context) {
+                            closeSearch();
+                            Slidable.of(context)?.close();
+                            buildPrivateDialog(index, pdfItem.currentIndex ?? 0,
+                                pdfItem, false, false);
+                          },
+                          backgroundColor: Color.fromRGBO(134, 88, 249, 1.0),
+                          foregroundColor: Colors.white,
+                          icon: Icons.people_alt_outlined,
+                          spacing: 5,
+                          padding: EdgeInsets.all(0),
+                          label: 'Public',
+                        ),
+                        SlidableAction(
+                          flex: 1,
+                          autoClose: true,
+                          onPressed: (context) {
+                            closeSearch();
+                            Slidable.of(context)?.close();
+                            buildRemoveDialog(index, pdfItem.currentIndex ?? 0,
+                                pdfItem, false, false);
+                          },
+                          backgroundColor: Color(0xFFFE4A49),
+                          foregroundColor: Colors.white,
+                          icon: Icons.delete,
+                          spacing: 5,
+                          padding: EdgeInsets.all(0),
+                          label: 'Delete',
                         ),
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 5, right: 7),
-                          child: Container(
-                              height: 40,
-                              width: 40,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                    colors: [
-                                      Color.fromRGBO(251, 173, 254, 0.5),
-                                      Color.fromRGBO(250, 157, 254, 0.75),
-                                      Color.fromRGBO(250, 127, 253, 0.85),
-                                      Color.fromRGBO(255, 109, 255, 0.95),
-                                    ],
-                                    begin: const FractionalOffset(0.0, 0.0),
-                                    end: const FractionalOffset(0.2, 0.9),
-                                    stops: [0.0, 0.5, 0.75, 1.0],
-                                    tileMode: TileMode.clamp),
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(5.0)),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Color.fromRGBO(249, 95, 254, 0.2),
-                                      blurRadius: 2,
-                                      offset: Offset(1, 1))
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(5.0)),
-                                child: BackdropFilter(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(5.0),
-                                    child: Image.asset(
-                                      "assets/pdf-file.png",
-                                      height: 50,
-                                    ),
-                                  ),
-                                  filter: ImageFilter.blur(
-                                      sigmaX: 0.5, sigmaY: 0.5),
-                                ),
-                              )),
+                    child: Builder(builder: (ctx) {
+                      return Container(
+                        height: 57,
+                        decoration: BoxDecoration(
+                          color:
+                              state.isNight ? Colors.grey[100] : Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color.fromRGBO(151, 116, 247, 0.3),
+                              blurRadius: 4,
+                              offset: Offset(4, 8),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                            child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Row(
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 2.0),
-                              child: Text(
-                                  'How to Create a circular progressbar in Android which rotates on it?',
+                              padding: const EdgeInsets.only(left: 5, right: 7),
+                              child: Container(
+                                  height: 40,
+                                  width: 40,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                        colors: [
+                                          Color.fromRGBO(251, 173, 254, 0.5),
+                                          Color.fromRGBO(250, 157, 254, 0.75),
+                                          Color.fromRGBO(250, 127, 253, 0.85),
+                                          Color.fromRGBO(255, 109, 255, 0.86),
+                                        ],
+                                        begin: const FractionalOffset(0.0, 0.0),
+                                        end: const FractionalOffset(0.2, 0.9),
+                                        stops: [0.0, 0.5, 0.75, 1.0],
+                                        tileMode: TileMode.clamp),
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(5.0)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color:
+                                              Color.fromRGBO(249, 95, 254, 0.2),
+                                          blurRadius: 2,
+                                          offset: Offset(1, 1))
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(5.0)),
+                                    child: BackdropFilter(
+                                      child: Stack(
+                                        alignment: Alignment.bottomRight,
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.all(5.0),
+                                            child: Image.asset(
+                                              "assets/file-format.png",
+                                              height: 50,
+                                            ),
+                                          ),
+                                          pdfItem.isEdit ?? false
+                                              ? Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          right: 2.0,
+                                                          bottom: 9.0),
+                                                  child: Container(
+                                                      color: Colors.blue[400],
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                    .symmetric(
+                                                                horizontal: 0.8,
+                                                                vertical: 1.0),
+                                                        child: Text("Edited",
+                                                            style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 6.8)),
+                                                      )),
+                                                )
+                                              : SizedBox(),
+                                        ],
+                                      ),
+                                      filter: ImageFilter.blur(
+                                          sigmaX: 0.5, sigmaY: 0.5),
+                                    ),
+                                  )),
+                            ),
+                            Expanded(
+                                child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2.0),
+                                  child: Text(
+                                      pdfItem.pathFile?.split("/").last ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(color: Colors.black)),
+                                ),
+                                Text(
+                                  FormatDateAndTime
+                                      .convertDatetoStringWithFormat(
+                                          pdfItem.timeOpen ?? DateTime.now(),
+                                          'hh:mm dd/MM/yyyy'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.black)),
-                            ),
-                            Text(
-                              DateTime.now().toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: Colors.grey[600]),
-                            )
+                                  style: TextStyle(color: Colors.grey[600]),
+                                )
+                              ],
+                            )),
+                            IconButton(
+                                splashColor: Colors.transparent,
+                                highlightColor: Colors.transparent,
+                                onPressed: () {
+                                  isFirstSlide = true;
+                                  Slidable.of(ctx)?.animation.isCompleted ==
+                                          true
+                                      ? Slidable.of(ctx)?.close()
+                                      : Slidable.of(ctx)?.openEndActionPane();
+                                },
+                                icon: Icon(Icons.more_horiz_rounded, size: 20))
                           ],
-                        )),
-                        IconButton(
-                            splashColor: Colors.transparent,
-                            highlightColor: Colors.transparent,
-                            onPressed: () {
-                              Slidable.of(ctx)?.animation.isCompleted == true
-                                  ? Slidable.of(ctx)?.close()
-                                  : Slidable.of(ctx)?.openEndActionPane();
-                            },
-                            icon: Icon(Icons.more_horiz_rounded, size: 20))
-                      ],
-                    ),
-                  );
-                }),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget buildPieChart() {
-    // double? percent;
+  Widget buildListPrivateSearch(
+      List<dynamic> privateList, DashboardState state) {
+    return privateList.length != 0
+        ? ListView.builder(
+            padding: EdgeInsets.all(0),
+            itemCount: privateList.length,
+            itemBuilder: (BuildContext context, int index) {
+              final pdfItem = privateList[index];
+              return InkWell(
+                onTap: () async {
+                  closeSearch();
+                  Slidable.of(context)?.close();
+                  bool isExists = await File(pdfItem.pathFile ?? '').exists();
+                  if (!isExists) {
+                    buildNotFoundDialog(index, pdfItem, true);
+                    return;
+                  }
+                  var linkResult = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ViewFileMain(
+                              isNightMode: state.isNight,
+                              fileKyTen: pdfItem.pathFile ?? '',
+                              isKySo: true,
+                              isUseMauChuKy: true,
+                              isPublic: tabController.index == 0,
+                            )),
+                  );
 
-    // Map<String, double> dataMapMDHL = {
-    //   "phanTram": percent ?? 20,
-    //   "100": 100 - (percent ?? 0),
-    // };
+                  setState(() => privateSearchCurrentList[index] = PDFModel(
+                      pathFile: linkResult,
+                      timeOpen: DateTime.now(),
+                      currentIndex:
+                          privateSearchCurrentList[index].currentIndex));
+                  _updatePrivateItem(
+                      pdfModel: PDFModel(
+                          pathFile: linkResult, timeOpen: DateTime.now()),
+                      index: privateSearchCurrentList[index].currentIndex ?? 0);
+                },
+                child: AnimationConfiguration.synchronized(
+                  duration: Duration(milliseconds: 1000),
+                  child: SlideAnimation(
+                    duration: Duration(milliseconds: 600),
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 25, right: 25, bottom: 12),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10.0),
+                        child: Slidable(
+                          enabled: false,
+                          key: const ValueKey(0),
+                          closeOnScroll: false,
+                          endActionPane: ActionPane(
+                            extentRatio: 0.60,
+                            motion: DrawerMotion(),
+                            children: [
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) async {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  await ShareExtend.share(
+                                      pdfItem.pathFile ?? '', "file");
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(151, 116, 247, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.share,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Share',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
+                                  buildPrivateDialog(
+                                      index,
+                                      pdfItem.currentIndex ?? 0,
+                                      pdfItem,
+                                      false,
+                                      true);
+                                },
+                                backgroundColor:
+                                    Color.fromRGBO(134, 88, 249, 1.0),
+                                foregroundColor: Colors.white,
+                                icon: Icons.people_alt_outlined,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Public',
+                              ),
+                              SlidableAction(
+                                flex: 1,
+                                autoClose: true,
+                                onPressed: (context) {
+                                  closeSearch();
+                                  Slidable.of(context)?.close();
 
-    // List<Color> listColor = [
-    //   Colors.green,
-    //   Colors.red[700]!,
-    // ];
+                                  buildRemoveDialog(pdfItem.currentIndex ?? 0,
+                                      index, pdfItem, false, true);
+                                },
+                                backgroundColor: Color(0xFFFE4A49),
+                                foregroundColor: Colors.white,
+                                icon: Icons.delete,
+                                spacing: 5,
+                                padding: EdgeInsets.all(0),
+                                label: 'Delete',
+                              ),
+                            ],
+                          ),
+                          child: Builder(builder: (ctx) {
+                            return Container(
+                              height: 57,
+                              decoration: BoxDecoration(
+                                color: state.isNight
+                                    ? Colors.grey[100]
+                                    : Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color.fromRGBO(151, 116, 247, 0.3),
+                                    blurRadius: 4,
+                                    offset: Offset(4, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        left: 5, right: 7),
+                                    child: Container(
+                                        height: 40,
+                                        width: 40,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                              colors: [
+                                                Color.fromRGBO(
+                                                    251, 173, 254, 0.5),
+                                                Color.fromRGBO(
+                                                    250, 157, 254, 0.75),
+                                                Color.fromRGBO(
+                                                    250, 127, 253, 0.85),
+                                                Color.fromRGBO(
+                                                    255, 109, 255, 0.86),
+                                              ],
+                                              begin: const FractionalOffset(
+                                                  0.0, 0.0),
+                                              end: const FractionalOffset(
+                                                  0.2, 0.9),
+                                              stops: [0.0, 0.5, 0.75, 1.0],
+                                              tileMode: TileMode.clamp),
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          boxShadow: [
+                                            BoxShadow(
+                                                color: Color.fromRGBO(
+                                                    249, 95, 254, 0.2),
+                                                blurRadius: 2,
+                                                offset: Offset(1, 1))
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(5.0)),
+                                          child: BackdropFilter(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(5.0),
+                                              child: Image.asset(
+                                                "assets/file-format.png",
+                                                height: 50,
+                                              ),
+                                            ),
+                                            filter: ImageFilter.blur(
+                                                sigmaX: 0.5, sigmaY: 0.5),
+                                          ),
+                                        )),
+                                  ),
+                                  Expanded(
+                                      child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 2.0),
+                                        child: Text(
+                                            pdfItem.pathFile?.split("/").last ??
+                                                '',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style:
+                                                TextStyle(color: Colors.black)),
+                                      ),
+                                      Text(
+                                        FormatDateAndTime
+                                            .convertDatetoStringWithFormat(
+                                                pdfItem.timeOpen ??
+                                                    DateTime.now(),
+                                                'hh:mm dd/MM/yyyy'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style:
+                                            TextStyle(color: Colors.grey[600]),
+                                      )
+                                    ],
+                                  )),
+                                  IconButton(
+                                      splashColor: Colors.transparent,
+                                      highlightColor: Colors.transparent,
+                                      onPressed: () {
+                                        isFirstSlide = true;
+                                        Slidable.of(ctx)
+                                                    ?.animation
+                                                    .isCompleted ==
+                                                true
+                                            ? Slidable.of(ctx)?.close()
+                                            : Slidable.of(ctx)
+                                                ?.openEndActionPane();
+                                      },
+                                      icon: Icon(Icons.more_horiz_rounded,
+                                          size: 20))
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          )
+        : buildEmptyPublish();
+  }
+
+  Widget buildPieChart(DashboardState state) {
     return Row(
       children: [
         Stack(
@@ -1054,11 +2657,13 @@ class _DashboardPageState extends State<DashboardPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(left: 8.0, top: 8.0),
+                      padding: const EdgeInsets.only(left: 8.0, top: 3),
                       child: Text(
                         tabController.index == 0
-                            ? '${bloc.formKeyList.length} files'
-                            : '${bloc.formKeyList.length} private files',
+                            ? '${state.publicCount} files'
+                            : isAuthen
+                                ? '${state.privateCount} private files'
+                                : 'Private files',
                         style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -1066,11 +2671,20 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(left: 8.0, top: 1.0),
+                      padding: const EdgeInsets.only(left: 8.0, top: 3.0),
                       child: Text(
-                        'Free Space',
+                        tabController.index == 0
+                            ? state.countEditPublic == 1
+                                ? '(${state.countEditPublic} edit file, total size: ${state.totalSizePublic} MB)'
+                                : '(${state.countEditPublic} edit files, total size: ${state.totalSizePublic} MB)'
+                            : isAuthen
+                                ? state.countEditPrivate == 1
+                                    ? '(${state.countEditPrivate} edit file, total size: ${state.totalSizePrivate} MB)'
+                                    : '(${state.countEditPrivate} edit files, total size: ${state.totalSizePrivate} MB)'
+                                : "Free space",
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: Colors.grey[400]),
                       ),
@@ -1081,14 +2695,26 @@ class _DashboardPageState extends State<DashboardPage>
               ],
             ),
             Padding(
-              padding: EdgeInsets.only(top: 4.0),
+              padding: EdgeInsets.only(top: 3),
               child: new LinearPercentIndicator(
                 animation: true,
-                lineHeight: 08.0,
-                animationDuration: 2000,
-                percent: 0.5,
+                lineHeight: 09.8,
+                animationDuration: 250,
+                addAutomaticKeepAlive: true,
+                barRadius: Radius.circular(3),
+                percent: state.percent,
                 linearStrokeCap: LinearStrokeCap.roundAll,
-                progressColor: Colors.greenAccent,
+                progressColor: Colors.green,
+                center: Padding(
+                  padding: const EdgeInsets.only(bottom: 1),
+                  child: Text(
+                    "phone storage status (used ${(state.percent * 100).toStringAsFixed(1)}%)",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 7.8,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1123,7 +2749,11 @@ class _DashboardPageState extends State<DashboardPage>
                 tabController.index == 0
                     ? buttonTabbar(title: 'Recent')
                     : InkWell(
-                        onTap: () => setState(() => tabController.index = 0),
+                        onTap: () {
+                          closeSearch();
+                          setState(() => tabController.index = 0);
+                          bloc.emitIndex(0);
+                        },
                         child: SizedBox(
                           height: 45,
                           width: (screenWidth - 50) / 2,
@@ -1145,7 +2775,11 @@ class _DashboardPageState extends State<DashboardPage>
                     : SizedBox(
                         height: 45,
                         child: InkWell(
-                          onTap: () => setState(() => tabController.index = 1),
+                          onTap: () {
+                            closeSearch();
+                            setState(() => tabController.index = 1);
+                            bloc.emitIndex(1);
+                          },
                           child: Center(
                             child: Text(
                               'Private',
@@ -1165,8 +2799,10 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget buttonTabbar({required String title}) {
     return InkWell(
-      onTap: () =>
-          setState(() => tabController.index = title == 'Private' ? 1 : 0),
+      onTap: () {
+        closeSearch();
+        setState(() => tabController.index = title == 'Private' ? 1 : 0);
+      },
       child: Padding(
         padding: const EdgeInsets.all(4.0),
         child: Container(

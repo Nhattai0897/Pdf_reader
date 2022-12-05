@@ -32,10 +32,10 @@ class HomePage extends StatelessWidget {
       child: Scaffold(
           appBar: AppBar(
             actions: [
-              IconButton(
-                onPressed: () => createFolder(context),
-                icon: Icon(Icons.create_new_folder_outlined),
-              ),
+              // IconButton(
+              //   onPressed: () => createFolder(context),
+              //   icon: Icon(Icons.create_new_folder_outlined),
+              // ),
               IconButton(
                 onPressed: () => sort(context),
                 icon: Icon(Icons.sort_rounded),
@@ -235,7 +235,7 @@ class HomePage extends StatelessWidget {
     // You can request multiple permissions at once.
   }
 
-  createFolder(BuildContext context) async { 
+  createFolder(BuildContext context) async {
     showDialog(
       context: context,
       builder: (context) {

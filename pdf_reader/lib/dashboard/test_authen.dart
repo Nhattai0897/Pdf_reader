@@ -1,97 +1,117 @@
-import 'dart:io';
+// import 'package:flutter/material.dart';
+// import 'package:image_picker/image_picker.dart';
+// import 'package:share_plus/share_plus.dart';
 
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:local_auth/local_auth.dart';
+// import 'image_previews.dart';
 
-class MyAppTestAuthen extends StatefulWidget {
-  @override
-  State<MyAppTestAuthen> createState() => _MyAppTestAuthenState();
-}
+// void main() {
+//   runApp(DemoApp());
+// }
 
-class _MyAppTestAuthenState extends State<MyAppTestAuthen> {
-  final LocalAuthentication auth = LocalAuthentication();
+// class DemoApp extends StatefulWidget {
+//   @override
+//   DemoAppState createState() => DemoAppState();
+// }
 
-  String msg = "You are not authorized.";
+// class DemoAppState extends State<DemoApp> {
+//   String text = '';
+//   String subject = '';
+//   List<String> imagePaths = [];
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        appBar: AppBar(
-          title: Text("Fingerprint/Face Scan/Pin/Pattern Authenciation",
-              style: TextStyle(fontSize: 15)),
-          backgroundColor: Colors.blue,
-        ),
-        body: Container(
-          margin: EdgeInsets.only(top: 10),
-          alignment: Alignment.center,
-          child: Column(
-            children: [
-              Center(
-                child: Text(msg),
-              ),
-              Divider(),
-              // ElevatedButton(
-              //     onPressed: () async {
-              //       try {
-              //         bool hasbiometrics = await auth
-              //             .canCheckBiometrics; //check if there is authencations,
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       title: 'Share Plugin Demo',
+//       home: Scaffold(
+//           appBar: AppBar(
+//             title: const Text('Share Plugin Demo'),
+//           ),
+//           body: SingleChildScrollView(
+//             child: Padding(
+//               padding: const EdgeInsets.all(24.0),
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: <Widget>[
+//                   TextField(
+//                     decoration: const InputDecoration(
+//                       labelText: 'Share text:',
+//                       hintText: 'Enter some text and/or link to share',
+//                     ),
+//                     maxLines: 2,
+//                     onChanged: (String value) => setState(() {
+//                       text = value;
+//                     }),
+//                   ),
+//                   TextField(
+//                     decoration: const InputDecoration(
+//                       labelText: 'Share subject:',
+//                       hintText: 'Enter subject to share (optional)',
+//                     ),
+//                     maxLines: 2,
+//                     onChanged: (String value) => setState(() {
+//                       subject = value;
+//                     }),
+//                   ),
+//                   const Padding(padding: EdgeInsets.only(top: 12.0)),
+//                  // ImagePreviews(imagePaths, onDelete: _onDeleteImage),
+//                   ListTile(
+//                     leading: Icon(Icons.add),
+//                     title: Text('Add image'),
+//                     onTap: () async {
+//                       final imagePicker = ImagePicker();
+//                       final pickedFile = await imagePicker.pic(
+//                         source: ImageSource.gallery,
+//                       );
+//                       if (pickedFile != null) {
+//                         setState(() {
+//                           imagePaths.add(pickedFile.path);
+//                         });
+//                       }
+//                     },
+//                   ),
+//                   const Padding(padding: EdgeInsets.only(top: 12.0)),
+//                   Builder(
+//                     builder: (BuildContext context) {
+//                       return ElevatedButton(
+//                         onPressed: text.isEmpty && imagePaths.isEmpty
+//                             ? null
+//                             : () => _onShare(context),
+//                         child: const Text('Share'),
+//                       );
+//                     },
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           )),
+//     );
+//   }
 
-              //         if (hasbiometrics) {
-              //           List<BiometricType> availableBiometrics =
-              //               await auth.getAvailableBiometrics();
-              //           if (Platform.isIOS) {
-              //             if (availableBiometrics
-              //                 .contains(BiometricType.face)) {
-              //               bool pass = await auth.authenticate(
-              //                   localizedReason:
-              //                       'Authenticate with fingerprint',
-              //                   biometricOnly: true);
+//   void _onDeleteImage(int position) {
+//     setState(() {
+//       imagePaths.removeAt(position);
+//     });
+//   }
 
-              //               if (pass) {
-              //                 msg = "You are Autenciated.";
-              //                 setState(() {});
-              //               }
-              //             }
-              //           } else {
-              //             if (availableBiometrics
-              //                 .contains(BiometricType.fingerprint)) {
-              //               bool pass = await auth.authenticate(
-              //                   localizedReason:
-              //                       'Authenticate with fingerprint/face',
-              //                   biometricOnly: true);
-              //               if (pass) {
-              //                 msg = "You are Authenicated.";
-              //                 setState(() {});
-              //               }
-              //             }
-              //           }
-              //         } else {
-              //           msg = "You are not alowed to access biometrics.";
-              //         }
-              //       } on PlatformException catch (e) {
-              //         msg = "Error while opening fingerprint/face scanner";
-              //       }
-              //     },
-              //     child: Text("Authenticate with Fingerprint/Face Scan")),
-              ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      bool pass = await auth.authenticate(
-                          localizedReason:
-                              'Authenticate with pattern/pin/passcode',
-                          biometricOnly: false);
-                      if (pass) {
-                        msg = "You are Authenticated.";
-                        setState(() {});
-                      }
-                    } on PlatformException catch (e) {
-                      msg = "Error while opening fingerprint/face scanner";
-                    }
-                  },
-                  child: Text("Authenticate with Pin/Passcode/Pattern Scan")),
-            ],
-          ),
-        ));
-  }
-}
+//   void _onShare(BuildContext context) async {
+//     // A builder is used to retrieve the context immediately
+//     // surrounding the ElevatedButton.
+//     //
+//     // The context's `findRenderObject` returns the first
+//     // RenderObject in its descendent tree when it's not
+//     // a RenderObjectWidget. The ElevatedButton's RenderObject
+//     // has its position and size after it's built.
+//     final box = context.findRenderObject() as RenderBox?;
+
+//     if (imagePaths.isNotEmpty) {
+//       await Share.shareFiles(imagePaths,
+//           text: text,
+//           subject: subject,
+//           sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
+//     } else {
+//       await Share.share(text,
+//           subject: subject,
+//           sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
+//     }
+//   }
+// }

@@ -23,11 +23,15 @@ void showFlushbar(
       break;
   }
 
-  Flushbar(
-    messageText: Text(message!, style: TextStyle(color: Colors.white)),
-    icon: icon == null ? Container() : icon,
-    backgroundColor: color,
-    flushbarPosition: FlushbarPosition.TOP,
-    duration: Duration(seconds: tgianHienThi == null ? 3 : tgianHienThi),
-  )..show(ctx!);
+  try {
+    Flushbar(
+      messageText: Text(message!, style: TextStyle(color: Colors.white)),
+      icon: icon == null ? Container() : icon,
+      backgroundColor: color,
+      flushbarPosition: FlushbarPosition.TOP,
+      duration: Duration(seconds: tgianHienThi == null ? 3 : tgianHienThi),
+    )..show(ctx!);
+  } catch (e) {
+    print('error flusbar: $e');
+  }
 }
