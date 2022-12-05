@@ -10,7 +10,6 @@ import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_fullpdfview/flutter_fullpdfview.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:painter/painter.dart';

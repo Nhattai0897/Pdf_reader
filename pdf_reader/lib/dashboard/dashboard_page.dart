@@ -1104,7 +1104,7 @@ class _DashboardPageState extends State<DashboardPage>
                                             .convertDatetoStringWithFormat(
                                                 pdfItem.timeOpen ??
                                                     DateTime.now(),
-                                                'hh:mm dd/MM/yyyy'),
+                                                ' dd/MM/yyyy'),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style:
@@ -2526,7 +2526,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   FormatDateAndTime
                                       .convertDatetoStringWithFormat(
                                           pdfItem.timeOpen ?? DateTime.now(),
-                                          'hh:mm dd/MM/yyyy'),
+                                          ' dd/MM/yyyy'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(color: Colors.grey[600]),
@@ -2810,7 +2810,7 @@ class _DashboardPageState extends State<DashboardPage>
                                             .convertDatetoStringWithFormat(
                                                 pdfItem.timeOpen ??
                                                     DateTime.now(),
-                                                'hh:mm dd/MM/yyyy'),
+                                                ' dd/MM/yyyy'),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style:
