@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -208,10 +209,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
   }
 
   Future<bool> onWillPop() async {
-    {
-      Navigator.pop(context, pathPDF == "" ? pathOriginal : pathPDF);
-      return true;
-    }
+    Navigator.pop(context, pathPDF == "" ? pathOriginal : pathPDF);
+    return true;
   }
 
   void initDataUI(maincontext) {
@@ -261,10 +260,10 @@ class _ViewFileHomeState extends State<ViewFileHome>
                               : Container(
                                   width: 40,
                                   child: Padding(
-                                    padding: const EdgeInsets.all(3.5),
+                                    padding: const EdgeInsets.all(3.7),
                                     child: CircularProgressIndicator(
                                         strokeWidth: 3.0,
-                                        color: Colors.white.withOpacity(0.6)),
+                                        color: Colors.white.withOpacity(0.3)),
                                   ))),
                       Expanded(
                         child: StreamBuilder<bool>(
@@ -471,12 +470,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
           }),
     );
   }
-
-  // Future<File> _getLocalFile(String filename) async {
-  //   String dir = (await getApplicationDocumentsDirectory()).path;
-  //   File f = new File('$dir/$filename');
-  //   return f;
-  // }
 
   Visibility buildSignParent(BuildContext context, bool? visible,
       AsyncSnapshot<PDFViewController> snapshotPDF, ViewFileState state) {
@@ -1290,11 +1283,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
       );
       tempDir = await getTemporaryDirectory();
     });
-
-    //Test
-    // noiDungButPheController.text =
-    //     'Căn cứ Quyết định số 678/QĐ-BNV ngày 27/8/2019 của Bộ trưởng Bộ Nội vụ ban hành Quy chế phát ngôn và cung cấp thông tin cho báo chí của Bộ Nội vụ;';
-
     if (widget.isKySo == false) {
       if (widget.isUrl) {
         //Online
@@ -1323,6 +1311,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
         });
       } else {
         //Off line
+        isReady = false;
         loadDocument(pathFile.toString());
         pathPDF = widget.fileKyTen;
         isLoadFileSuccess = true;
@@ -1439,37 +1428,33 @@ class _ViewFileHomeState extends State<ViewFileHome>
     bloc.pushIndexCalculator(true);
   }
 
-  // Future<File> fromAsset(String asset, String filename) async {
-  //   Completer<File> completer = Completer();
-  //   try {
-  //     var dir = await getApplicationDocumentsDirectory();
-  //     File file = File("${dir.path}/$filename");
-  //     var data = await rootBundle.load(asset);
-  //     var bytes = data.buffer.asUint8List();
-  //     await file.writeAsBytes(bytes, flush: true);
-  //     completer.complete(file);
-  //   } catch (e) {
-  //     throw Exception('Error parsing asset file!');
-  //   }
-  //   return completer.future;
-  // }
-
   Future<File?> createFileOfPdfUrl(String link) async {
     try {
       final filename = link.substring(link.lastIndexOf("/") + 1);
-      var request = await HttpClient().getUrl(Uri.parse(link));
-      var response = await request.close();
+      final dio = Dio();
+      Response response = await dio.get(link,
+          //Received data with List<int>
+          options: Options(
+              responseType: ResponseType.bytes,
+              followRedirects: false,
+              contentType: Headers.formUrlEncodedContentType,
+              receiveTimeout: 60 * 1000,
+              sendTimeout: 10000),
+          onReceiveProgress: (count, total) {});
+
       if (response.statusCode != 404) {
-        var bytes = await consolidateHttpClientResponseBytes(response);
         String dir = (await getApplicationDocumentsDirectory()).path;
         File file = File('$dir/$filename');
-        await file.writeAsBytes(bytes);
+        await file.writeAsBytes(response.data);
         return file;
       } else {
+        isReady = false;
+
         bloc.pushErrorData(true);
         return null;
       }
     } catch (e) {
+      isReady = false;
       bloc.pushErrorData(true);
       await Future.delayed(Duration(milliseconds: 50));
       bloc.warningButPhe(
