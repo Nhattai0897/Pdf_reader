@@ -1,6 +1,5 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'colors.dart';
+import 'package:flutter/material.dart'; 
 
 class CoreFontFamily {
   static String? bold;
@@ -18,7 +17,7 @@ class CoreTextStyle {
           fontFamily: CoreFontFamily.regular,
           decoration: textDecoration ?? TextDecoration.none,
           fontSize: fontSize ?? CoreFontSize.defaultSize,
-          color: color ?? CoreColors.textColor,
+          color: color   ,
           height: 1.2);
 
   static TextStyle boldTextFont({Color? color, double? fontSize}) => TextStyle(
@@ -31,25 +30,25 @@ class CoreTextStyle {
       TextStyle(
         fontFamily: CoreFontFamily.boldItalic,
         fontSize: fontSize ?? CoreFontSize.defaultSize,
-        color: color ?? CoreColors.textColor,
+        color: color   ,
       );
 
   static TextStyle italicTextFont({Color? color, double? fontSize}) => TextStyle(
         fontFamily: CoreFontFamily.italic,
         fontSize: fontSize ?? CoreFontSize.defaultSize,
-        color: color ?? CoreColors.textColor,
+        color: color   ,
       );
 
   static TextStyle semiBoldTextFont({Color? color, double? fontSize}) =>
       TextStyle(
         fontFamily: CoreFontFamily.semiBold,
         fontSize: fontSize ?? CoreFontSize.defaultSize,
-        color: color ?? CoreColors.textColor,
+        color: color   ,
       );
   static TextStyle mediumTextFont({Color? color, double? fontSize}) => TextStyle(
         fontFamily: CoreFontFamily.medium,
         fontSize: fontSize ?? CoreFontSize.defaultSize,
-        color: color ?? CoreColors.textColor,
+        color: color   ,
       );
 }
 

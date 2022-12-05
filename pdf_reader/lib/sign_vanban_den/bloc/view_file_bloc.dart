@@ -2,11 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:pdf_reader/sign_vanban_den/api/view_file_api.dart';
-import 'package:pdf_reader/sign_vanban_den/model/loai_hien_thi_model.dart';
-import 'package:pdf_reader/sign_vanban_den/model/loai_ky_so_model.dart';
-import 'package:pdf_reader/sign_vanban_den/model/mau_chu_ky_so_model.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; 
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
@@ -14,7 +10,6 @@ import 'package:pdf_reader/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/utils/networks.dart';
 
 class ViewFileBloc extends Cubit<ViewFileState> {
-  late ViewFileApi? viewFileApi;
   late FileLocalResponse network;
   late BuildContext mainContext;
   late Widget mauChuKyWidget;
@@ -22,7 +17,7 @@ class ViewFileBloc extends Cubit<ViewFileState> {
   String? fileName;
   String? fullPathFile;
   bool? isFirst;
-  ViewFileBloc({this.viewFileApi})
+  ViewFileBloc()
       : super(ViewFileState(
             status: BlocBuilderStatusCase.initial,
             statusLoadSign: BlocBuilderStatusCase.initial,
@@ -30,9 +25,7 @@ class ViewFileBloc extends Cubit<ViewFileState> {
             countPage: 0,
             currentPage: 0,
             isFirst: true,
-            isShowWarning: false)) {
-    viewFileApi = new ViewFileApi();
-  }
+            isShowWarning: false));
 
   void initContext(BuildContext context, String tenTepDinhKem) {
     fullPathFile = tenTepDinhKem;
@@ -40,16 +33,12 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     checkFirstTime();
   }
 
-  void checkFirstTime() =>
-    isFirst = false;
+  void checkFirstTime() => isFirst = false;
 
-  void onFinish() =>
-    emit(state.copyWith(isFirst: false));
-
+  void onFinish() => emit(state.copyWith(isFirst: false));
 
   void suDungViTriCauHinhAct({required bool isUse}) =>
-    emit(state.copyWith(isUseDefaultConfig: isUse));
-
+      emit(state.copyWith(isUseDefaultConfig: isUse));
 
   void emitWarning({required bool isShow}) {
     emit(state.copyWith(
