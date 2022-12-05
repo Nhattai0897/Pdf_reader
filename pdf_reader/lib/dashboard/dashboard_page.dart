@@ -21,6 +21,7 @@ import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/modal_bottom_sheet_select_file.dart';
 import 'package:pdf_reader/utils/format_date.dart';
+import 'package:pdf_reader/utils/networks.dart';
 import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart';
 import 'package:pdf_reader/widget/lock_page.dart';
 import 'package:pdf_reader/widget/popup_link.dart';
@@ -54,12 +55,12 @@ class _DashboardPageState extends State<DashboardPage>
     with TickerProviderStateMixin {
   late DashboardBloc bloc;
   late double heightAppbar, screenWidth, screenHeight;
-  late AnimationController _controller;
+  late AnimationController _controllerRotateLightDark;
   late TabController tabController;
   late LocalAuthentication auth;
   late List<GlobalObjectKey<FormState>> formKeyList;
   late TextEditingController searchController;
-
+  String tempPath = "";
   late String pathFile;
   late Animation<Color?> animation;
   late AnimationController controller;
@@ -106,17 +107,17 @@ class _DashboardPageState extends State<DashboardPage>
     bloc.initContext(context);
     setupCountPermiss();
     // Animation wave
-    _controller =
+    _controllerRotateLightDark =
         AnimationController(vsync: this, duration: Duration(seconds: 60))
           ..repeat();
     // Color background
     controller = AnimationController(
-        duration: const Duration(milliseconds: 300), vsync: this);
+        duration: const Duration(milliseconds: 600), vsync: this);
     animation = ColorTween(
             begin: Color.fromRGBO(148, 112, 251, 0.2), end: Colors.black87)
         .animate(controller)
           ..addListener(() => setState(() {
-                // The state that has changed here is the animation object’s value.
+                // The state that has changed here is the animation object’s value.(Update background light_dark mode)
               }));
     tabController = TabController(
       initialIndex: 0,
@@ -132,6 +133,15 @@ class _DashboardPageState extends State<DashboardPage>
             break;
         }
       });
+    getPrivatePath();
+  }
+
+  Future<void> getPrivatePath() async {
+    tempPath = await FileLocalResponse().getPathLocal(
+          ePathType: EPathType.Storage,
+          configPathStr: 'privateFolder',
+        ) ??
+        "";
   }
 
   Future<void> setupCountPermiss() async {
@@ -154,10 +164,11 @@ class _DashboardPageState extends State<DashboardPage>
     // phương thức add() sẽ tự động tăng key lên +1 mỗi khi có liên hệ được thêm vào.
     await pdfBox.add(PDFModel(
         pathFile: pdfModel.pathFile,
+        urlLink: pdfModel.urlLink,
         timeOpen: pdfModel.timeOpen,
         currentIndex: pdfModel.currentIndex,
         isOpen: false,
-        isEdit: false));
+        isEdit: pdfModel.isEdit ?? false));
   }
 
   ///////// Private box ////////
@@ -177,7 +188,8 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   void dispose() {
-    _controller.dispose();
+    tabController.dispose();
+    _controllerRotateLightDark.dispose();
     controller.dispose();
     Hive.close();
     super.dispose();
@@ -537,7 +549,7 @@ class _DashboardPageState extends State<DashboardPage>
               return InkWell(
                 onTap: () async {
                   closeSearch();
-                  await Slidable.of(context)?.close();
+                  // await  Slidable.of(context)?.close();
                   bool isExists = await File(pdfItem.pathFile ?? '').exists();
                   if (!isExists) {
                     buildNotFoundDialog(index, pdfItem, true);
@@ -589,7 +601,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) async {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   await ShareExtend.share(
                                       pdfItem.pathFile ?? '', "file");
                                 },
@@ -606,7 +618,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   buildPrivateDialog(
                                       index,
                                       pdfItem.currentIndex ?? 0,
@@ -627,7 +639,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   buildRemoveDialog(
                                       index, 0, pdfItem, true, false);
                                 },
@@ -772,7 +784,7 @@ class _DashboardPageState extends State<DashboardPage>
                                             .convertDatetoStringWithFormat(
                                                 pdfItem.timeOpen ??
                                                     DateTime.now(),
-                                                'hh:mm dd/MM/yyyy'),
+                                                ' dd/MM/yyyy'),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style:
@@ -855,8 +867,8 @@ class _DashboardPageState extends State<DashboardPage>
               final pdfItem = pdfListBox[index];
               return InkWell(
                 onTap: () async {
-                  closeSearch();
-                  Slidable.of(context)?.close();
+                  // closeSearch();
+                  // Slidable.of(context)?.close();
                   bool isExists = await File(pdfItem.pathFile ?? '').exists();
                   if (!isExists) {
                     buildNotFoundDialog(index, pdfItem, true);
@@ -876,6 +888,12 @@ class _DashboardPageState extends State<DashboardPage>
                   setState(() => publicSearchCurrentList[index] = PDFModel(
                       pathFile: linkResult,
                       timeOpen: DateTime.now(),
+                      isOpen: pdfItem.isOpen,
+                      isEdit: pdfItem.isEdit == false
+                          ? linkResult == pdfItem.pathFile
+                              ? false
+                              : true
+                          : pdfItem.isEdit ?? false,
                       currentIndex:
                           publicSearchCurrentList[index].currentIndex));
 
@@ -909,7 +927,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) async {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   await ShareExtend.share(
                                       pdfItem.pathFile ?? '', "file");
                                 },
@@ -926,7 +944,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   buildPrivateDialog(
                                       index,
                                       pdfItem.currentIndex ?? 0,
@@ -947,7 +965,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   buildRemoveDialog(pdfItem.currentIndex ?? 0,
                                       index, pdfItem, true, true);
                                 },
@@ -1015,14 +1033,50 @@ class _DashboardPageState extends State<DashboardPage>
                                           borderRadius: BorderRadius.all(
                                               Radius.circular(5.0)),
                                           child: BackdropFilter(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(5.0),
-                                              child: Image.asset(
-                                                "assets/file-format.png",
-                                                height: 50,
-                                              ),
-                                            ),
+                                            child: Stack(
+                                                alignment:
+                                                    Alignment.bottomRight,
+                                                children: [
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            5.0),
+                                                    child: Image.asset(
+                                                      "assets/file-format.png",
+                                                      height: 50,
+                                                    ),
+                                                  ),
+                                                  pdfItem.isEdit ?? false
+                                                      ? Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                      .only(
+                                                                  right: 2.0,
+                                                                  bottom: 9.0),
+                                                          child: Container(
+                                                              color: Colors
+                                                                  .blue[400],
+                                                              child: Padding(
+                                                                padding: const EdgeInsets
+                                                                        .symmetric(
+                                                                    horizontal:
+                                                                        0.8,
+                                                                    vertical:
+                                                                        1.0),
+                                                                child: Text(
+                                                                    "Edited",
+                                                                    style: TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight
+                                                                                .bold,
+                                                                        color: Colors
+                                                                            .white,
+                                                                        fontSize:
+                                                                            6.8)),
+                                                              )),
+                                                        )
+                                                      : SizedBox(),
+                                                ]),
                                             filter: ImageFilter.blur(
                                                 sigmaX: 0.5, sigmaY: 0.5),
                                           ),
@@ -1280,25 +1334,89 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(bottom: 2.0),
         child: InkWell(
-          onTap: () {
+          onTap: () async {
             Navigator.of(context).pop();
             if (isSearch) {
               if (isPublic) {
                 privateFile(index);
-                addPrivateItem(pdfItem);
+                if (pdfItem.pathFile != null &&
+                    pdfItem.isEdit == true &&
+                    tempPath != "") {
+                  var newPath = pdfItem.pathFile!
+                      .replaceAll('publicFolder', 'privateFolder');
+                  await createFolder(tempPath);
+                  await moveFile(File(pdfItem.pathFile!), newPath);
+                  addPrivateItem(PDFModel(
+                      currentIndex: pdfItem.currentIndex,
+                      isEdit: pdfItem.isEdit,
+                      isOpen: pdfItem.isOpen,
+                      pathFile: newPath,
+                      timeOpen: pdfItem.timeOpen));
+                  bloc.setupTotalData();
+                } else {
+                  addPrivateItem(pdfItem);
+                }
                 setState(() => publicSearchCurrentList.removeAt(indexSearch));
               } else {
                 publicFile(index);
-                addPublicItem(pdfItem);
+                if (pdfItem.pathFile != null &&
+                    pdfItem.isEdit == true &&
+                    tempPath != "") {
+                  var newPath = pdfItem.pathFile!
+                      .replaceAll('privateFolder', 'publicFolder');
+                  await createFolder(tempPath);
+                  await moveFile(File(pdfItem.pathFile!), newPath);
+                  addPublicItem(PDFModel(
+                      currentIndex: pdfItem.currentIndex,
+                      isEdit: pdfItem.isEdit,
+                      isOpen: pdfItem.isOpen,
+                      pathFile: newPath,
+                      timeOpen: pdfItem.timeOpen));
+                  bloc.setupTotalData();
+                } else {
+                  addPublicItem(pdfItem);
+                }
                 setState(() => privateSearchCurrentList.removeAt(indexSearch));
               }
             } else {
               if (isPublic) {
                 privateFile(indexSearch);
-                addPrivateItem(pdfItem);
+                if (pdfItem.pathFile != null &&
+                    pdfItem.isEdit == true &&
+                    tempPath != "") {
+                  var newPath = pdfItem.pathFile!
+                      .replaceAll('publicFolder', 'privateFolder');
+                  await createFolder(tempPath);
+                  await moveFile(File(pdfItem.pathFile!), newPath);
+                  addPrivateItem(PDFModel(
+                      currentIndex: pdfItem.currentIndex,
+                      isEdit: pdfItem.isEdit,
+                      isOpen: pdfItem.isOpen,
+                      pathFile: newPath,
+                      timeOpen: pdfItem.timeOpen));
+                  bloc.setupTotalData();
+                } else {
+                  addPrivateItem(pdfItem);
+                }
               } else {
                 publicFile(indexSearch);
-                addPublicItem(pdfItem);
+                if (pdfItem.pathFile != null &&
+                    pdfItem.isEdit == true &&
+                    tempPath != "") {
+                  var newPath = pdfItem.pathFile!
+                      .replaceAll('privateFolder', 'publicFolder');
+                  await createFolder(tempPath);
+                  await moveFile(File(pdfItem.pathFile!), newPath);
+                  addPublicItem(PDFModel(
+                      currentIndex: pdfItem.currentIndex,
+                      isEdit: pdfItem.isEdit,
+                      isOpen: pdfItem.isOpen,
+                      pathFile: newPath,
+                      timeOpen: pdfItem.timeOpen));
+                  bloc.setupTotalData();
+                } else {
+                  addPublicItem(pdfItem);
+                }
               }
             }
           },
@@ -1354,6 +1472,32 @@ class _DashboardPageState extends State<DashboardPage>
         ),
       ),
     ];
+  }
+
+  Future<String> createFolder(String folderPath) async {
+    final path = Directory(folderPath);
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      await Permission.storage.request();
+    }
+    if ((await path.exists())) {
+      return path.path;
+    } else {
+      path.create();
+      return path.path;
+    }
+  }
+
+  Future<File> moveFile(File sourceFile, String newPath) async {
+    try {
+      // prefer using rename as it is probably faster
+      return await sourceFile.rename(newPath);
+    } on FileSystemException catch (e) {
+      // if rename fails, copy the source file and then delete it
+      final newFile = await sourceFile.copy(newPath);
+      await sourceFile.delete();
+      return newFile;
+    }
   }
 
   List<Widget> listNotFoundAction(
@@ -1604,10 +1748,10 @@ class _DashboardPageState extends State<DashboardPage>
       top: 0,
       left: -20,
       child: AnimatedBuilder(
-        animation: _controller,
+        animation: _controllerRotateLightDark,
         builder: (_, child) {
           return Transform.rotate(
-            angle: _controller.value * 2 * math.pi,
+            angle: _controllerRotateLightDark.value * 2 * math.pi,
             child: child,
           );
         },
@@ -1790,10 +1934,23 @@ class _DashboardPageState extends State<DashboardPage>
                         isPublic: tabController.index == 0,
                       )),
             );
-            addPublicItem(PDFModel(
-                pathFile: linkResultFile,
-                timeOpen: DateTime.now(),
-                isOpen: linkResultFile == subLink));
+            int indexItem = publicCloneList
+                .indexWhere((element) => element.pathFile == subLink);
+            if (indexItem == -1) {
+              addPublicItem(PDFModel(
+                  pathFile: linkResultFile,
+                  timeOpen: DateTime.now(),
+                  isOpen: linkResultFile == subLink));
+            } else {
+              _deleteItemList(indexItem);
+
+              addPublicItem(PDFModel(
+                  currentIndex: publicCloneList[indexItem].currentIndex,
+                  isEdit: publicCloneList[indexItem].isEdit,
+                  isOpen: publicCloneList[indexItem].isOpen,
+                  pathFile: publicCloneList[indexItem].pathFile,
+                  timeOpen: DateTime.now()));
+            }
           },
           isPermission: isPermission,
           isNightMode: state.isNight);
@@ -1807,7 +1964,7 @@ class _DashboardPageState extends State<DashboardPage>
           isZalo: isZalo,
           onResult: (url) async {
             var path = url.keys.toString();
-            var subLink = pathFile.substring(1, path.length - 1);
+            var subLink = path.substring(1, path.length - 1);
             Navigator.pop(context);
             var linkResult = await Navigator.push(
               context,
@@ -1822,10 +1979,24 @@ class _DashboardPageState extends State<DashboardPage>
                       )),
             );
             if (linkResult != 'error') {
-              addPublicItem(PDFModel(
-                pathFile: linkResult,
-                timeOpen: DateTime.now(),
-              ));
+              int indexItem = publicCloneList
+                  .indexWhere((element) => element.urlLink == subLink);
+              if (indexItem == -1) {
+                addPublicItem(PDFModel(
+                  pathFile: linkResult,
+                  urlLink: subLink,
+                  timeOpen: DateTime.now(),
+                ));
+              } else {
+                _deleteItemList(indexItem);
+                addPublicItem(PDFModel(
+                    currentIndex: publicCloneList[indexItem].currentIndex,
+                    urlLink: publicCloneList[indexItem].urlLink,
+                    isEdit: publicCloneList[indexItem].isEdit,
+                    isOpen: publicCloneList[indexItem].isOpen,
+                    pathFile: publicCloneList[indexItem].pathFile,
+                    timeOpen: DateTime.now()));
+              }
             }
           });
     });
@@ -2028,6 +2199,7 @@ class _DashboardPageState extends State<DashboardPage>
                             )),
                   );
                   addPublicItem(PDFModel(
+                    isEdit: false,
                     pathFile: linkResultFile,
                     timeOpen: DateTime.now(),
                   ));
@@ -2157,7 +2329,7 @@ class _DashboardPageState extends State<DashboardPage>
         return InkWell(
           onTap: () async {
             closeSearch();
-            Slidable.of(context)?.close();
+            // Slidable.of(context)?.close();
             var linkResult = await Navigator.push(
               context,
               MaterialPageRoute(
@@ -2203,7 +2375,7 @@ class _DashboardPageState extends State<DashboardPage>
                           autoClose: true,
                           onPressed: (context) async {
                             closeSearch();
-                            Slidable.of(context)?.close();
+                            // Slidable.of(context)?.close();
                             await ShareExtend.share(
                                 pdfItem.pathFile ?? '', "file");
                           },
@@ -2219,7 +2391,7 @@ class _DashboardPageState extends State<DashboardPage>
                           autoClose: true,
                           onPressed: (context) {
                             closeSearch();
-                            Slidable.of(context)?.close();
+                            // Slidable.of(context)?.close();
                             buildPrivateDialog(index, pdfItem.currentIndex ?? 0,
                                 pdfItem, false, false);
                           },
@@ -2235,7 +2407,7 @@ class _DashboardPageState extends State<DashboardPage>
                           autoClose: true,
                           onPressed: (context) {
                             closeSearch();
-                            Slidable.of(context)?.close();
+                            // Slidable.of(context)?.close();
                             buildRemoveDialog(index, pdfItem.currentIndex ?? 0,
                                 pdfItem, false, false);
                           },
@@ -2397,7 +2569,7 @@ class _DashboardPageState extends State<DashboardPage>
               return InkWell(
                 onTap: () async {
                   closeSearch();
-                  Slidable.of(context)?.close();
+                  // Slidable.of(context)?.close();
                   bool isExists = await File(pdfItem.pathFile ?? '').exists();
                   if (!isExists) {
                     buildNotFoundDialog(index, pdfItem, true);
@@ -2418,11 +2590,25 @@ class _DashboardPageState extends State<DashboardPage>
                   setState(() => privateSearchCurrentList[index] = PDFModel(
                       pathFile: linkResult,
                       timeOpen: DateTime.now(),
+                      isOpen: pdfItem.isOpen,
+                      isEdit: pdfItem.isEdit == false
+                          ? linkResult == pdfItem.pathFile
+                              ? false
+                              : true
+                          : pdfItem.isEdit ?? false,
                       currentIndex:
                           privateSearchCurrentList[index].currentIndex));
                   _updatePrivateItem(
                       pdfModel: PDFModel(
-                          pathFile: linkResult, timeOpen: DateTime.now()),
+                        pathFile: linkResult,
+                        timeOpen: DateTime.now(),
+                        isEdit: pdfItem.isEdit == false
+                            ? linkResult == pdfItem.pathFile
+                                ? false
+                                : true
+                            : pdfItem.isEdit ?? false,
+                        isOpen: pdfItem.isOpen,
+                      ),
                       index: privateSearchCurrentList[index].currentIndex ?? 0);
                 },
                 child: AnimationConfiguration.synchronized(
@@ -2446,7 +2632,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) async {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   await ShareExtend.share(
                                       pdfItem.pathFile ?? '', "file");
                                 },
@@ -2463,7 +2649,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
                                   buildPrivateDialog(
                                       index,
                                       pdfItem.currentIndex ?? 0,
@@ -2484,7 +2670,7 @@ class _DashboardPageState extends State<DashboardPage>
                                 autoClose: true,
                                 onPressed: (context) {
                                   closeSearch();
-                                  Slidable.of(context)?.close();
+                                  // Slidable.of(context)?.close();
 
                                   buildRemoveDialog(pdfItem.currentIndex ?? 0,
                                       index, pdfItem, false, true);
@@ -2553,14 +2739,50 @@ class _DashboardPageState extends State<DashboardPage>
                                           borderRadius: BorderRadius.all(
                                               Radius.circular(5.0)),
                                           child: BackdropFilter(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.all(5.0),
-                                              child: Image.asset(
-                                                "assets/file-format.png",
-                                                height: 50,
-                                              ),
-                                            ),
+                                            child: Stack(
+                                                alignment:
+                                                    Alignment.bottomRight,
+                                                children: [
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            5.0),
+                                                    child: Image.asset(
+                                                      "assets/file-format.png",
+                                                      height: 50,
+                                                    ),
+                                                  ),
+                                                  pdfItem.isEdit ?? false
+                                                      ? Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                      .only(
+                                                                  right: 2.0,
+                                                                  bottom: 9.0),
+                                                          child: Container(
+                                                              color: Colors
+                                                                  .blue[400],
+                                                              child: Padding(
+                                                                padding: const EdgeInsets
+                                                                        .symmetric(
+                                                                    horizontal:
+                                                                        0.8,
+                                                                    vertical:
+                                                                        1.0),
+                                                                child: Text(
+                                                                    "Edited",
+                                                                    style: TextStyle(
+                                                                        fontWeight:
+                                                                            FontWeight
+                                                                                .bold,
+                                                                        color: Colors
+                                                                            .white,
+                                                                        fontSize:
+                                                                            6.8)),
+                                                              )),
+                                                        )
+                                                      : SizedBox(),
+                                                ]),
                                             filter: ImageFilter.blur(
                                                 sigmaX: 0.5, sigmaY: 0.5),
                                           ),

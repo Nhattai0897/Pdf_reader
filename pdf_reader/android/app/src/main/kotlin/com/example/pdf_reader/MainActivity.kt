@@ -1,4 +1,4 @@
-package com.example.pdf_reader
+package tech.mobile.pdfeditor
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugins.GeneratedPluginRegistrant

@@ -25,16 +25,17 @@ class FormatDateAndTime {
     return dateString;
   }
 
-
   static DateTime convertStringToDateWithFormat(String date, String format) {
     var _fm = DateFormat(format);
     return _fm.parse(date);
   }
- 
- static String convertDatetoStringWithFormat(DateTime date, String format) {
+
+  static String convertDatetoStringWithFormat(DateTime date, String format) {
+    var time = DateFormat.Hm().format(date);
     var _fm = DateFormat(format);
-    return _fm.format(date);
+    return time + _fm.format(date);
   }
+
   //// Check phone number
   static int vietnamPhoneNumberValidate(String phoneNumber) {
     int state = 0;
