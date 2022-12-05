@@ -120,6 +120,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
   GlobalKey _globalKeyTextField = new GlobalKey();
   GlobalKey _globalKeySign = new GlobalKey();
   final GlobalKey _containerFakePDFViewKey = GlobalKey();
+  String dir = "";
   late ViewFileBloc bloc;
   late Random random;
   bool _isLoading = true;
@@ -142,10 +143,12 @@ class _ViewFileHomeState extends State<ViewFileHome>
   int pages = 0;
   int pageIndexTemp = 0;
   int pageIndex = 0;
+  late CancelToken cancelToken;
   double firstPageHeight = 0.0;
   double firstPageWidth = 0.0;
   DateTime datetime = DateTime.now();
   String pathOriginal = "";
+  double percent = 0;
   var tempDir;
   String? tempPath;
   String _chars =
@@ -250,21 +253,31 @@ class _ViewFileHomeState extends State<ViewFileHome>
                     children: [
                       IconButton(
                           onPressed: () {
-                            if (isReady != null) {
+                            if (widget.isUrl) {
+                              if (percent != 0) {
+                                cancelToken.cancel();
+                              }
+                              Navigator.pop(maincontext,
+                                  pathPDF == "" ? pathOriginal : pathPDF);
+                            } else if (isReady != null) {
                               Navigator.pop(maincontext,
                                   pathPDF == "" ? pathOriginal : pathPDF);
                             }
                           },
-                          icon: isReady != null
+                          icon: widget.isUrl
                               ? Icon(Icons.arrow_back_ios, color: Colors.white)
-                              : Container(
-                                  width: 40,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(3.7),
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 3.0,
-                                        color: Colors.white.withOpacity(0.3)),
-                                  ))),
+                              : isReady != null
+                                  ? Icon(Icons.arrow_back_ios,
+                                      color: Colors.white)
+                                  : Container(
+                                      width: 40,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(3.7),
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 3.0,
+                                            color:
+                                                Colors.white.withOpacity(0.3)),
+                                      ))),
                       Expanded(
                         child: StreamBuilder<bool>(
                             stream: bloc.streamReady,
@@ -320,12 +333,14 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                             const EdgeInsets.only(right: 15.0),
                                         child: Image.asset('assets/loading.gif',
                                             width: 85)),
-                            SizedBox(height: 10),
+                            SizedBox(height: 5),
                             Text(isShowError
                                 ? "Unable to load document!"
                                 : isEdit
                                     ? "Document saving..."
-                                    : "Document loading...")
+                                    : widget.isUrl
+                                        ? "Document loading (${percent.toStringAsFixed(1)}%)"
+                                        : "Document loading...")
                           ],
                         ));
                       })
@@ -847,6 +862,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                           width: screenWidth / 3.3,
                           child: RaisedButton(
                             onPressed: () {
+                              percent = 0;
                               iniStateFnc(pathFile: pathOriginal);
                               setState(() => countBack = 0);
                               Navigator.pop(context);
@@ -1272,6 +1288,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
   }
 
   void iniStateFnc({required String pathFile}) {
+    cancelToken = CancelToken();
     random = new Random();
     bloc = BlocProvider.of<ViewFileBloc>(context);
     bloc.initContext(context, pathFile.toString());
@@ -1282,6 +1299,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
         configPathStr: widget.isPublic ? 'publicFolder' : 'privateFolder',
       );
       tempDir = await getTemporaryDirectory();
+      dir = (await getApplicationDocumentsDirectory()).path;
     });
     if (widget.isKySo == false) {
       if (widget.isUrl) {
@@ -1428,28 +1446,28 @@ class _ViewFileHomeState extends State<ViewFileHome>
     bloc.pushIndexCalculator(true);
   }
 
-  Future<File?> createFileOfPdfUrl(String link) async {
+  Future<String?> createFileOfPdfUrl(String link) async {
     try {
       final filename = link.substring(link.lastIndexOf("/") + 1);
+      if (dir == "") {
+        dir = (await getApplicationDocumentsDirectory()).path;
+      }
       final dio = Dio();
-      Response response = await dio.get(link,
-          //Received data with List<int>
+
+      Response response = await dio.download(link, '$dir/$filename',
+          cancelToken: cancelToken,
           options: Options(
               responseType: ResponseType.bytes,
               followRedirects: false,
               contentType: Headers.formUrlEncodedContentType,
               receiveTimeout: 60 * 1000,
-              sendTimeout: 10000),
-          onReceiveProgress: (count, total) {});
-
+              sendTimeout: 10000), onReceiveProgress: (count, total) {
+        setState(() => percent = (count / total) * 100);
+      });
       if (response.statusCode != 404) {
-        String dir = (await getApplicationDocumentsDirectory()).path;
-        File file = File('$dir/$filename');
-        await file.writeAsBytes(response.data);
-        return file;
+        return '$dir/$filename';
       } else {
         isReady = false;
-
         bloc.pushErrorData(true);
         return null;
       }
@@ -1457,9 +1475,11 @@ class _ViewFileHomeState extends State<ViewFileHome>
       isReady = false;
       bloc.pushErrorData(true);
       await Future.delayed(Duration(milliseconds: 50));
-      bloc.warningButPhe(
-          title: 'File download failed, please check the link again',
-          loaiThongBao: LoaiThongBao.thatBai);
+      if (percent == 0) {
+        bloc.warningButPhe(
+            title: 'File download failed, please check the link again',
+            loaiThongBao: LoaiThongBao.thatBai);
+      }
       pathPDF = 'error';
       return null;
     }
@@ -1468,8 +1488,8 @@ class _ViewFileHomeState extends State<ViewFileHome>
   Future<String?> changePDF(link) async {
     setState(() => _isLoading = true);
     await createFileOfPdfUrl(link).then((value) {
-      if (value != null) {
-        pathPDF = value.path;
+      if (value != null && value != "") {
+        pathPDF = value;
         isLoadFileSuccess = true;
         setState(() => _isLoading = false);
         return pathPDF;
