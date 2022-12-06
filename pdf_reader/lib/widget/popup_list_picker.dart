@@ -6,7 +6,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:pdf_reader/sign_vanban_den/utils/util.dart'; 
+import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 
 class PopUpListPicker extends StatefulWidget {
   final List<Map<String, String>>? listData;
@@ -18,6 +18,7 @@ class PopUpListPicker extends StatefulWidget {
   final bool isDownloadFolder;
   final bool isAccess;
   final bool isWarning;
+  final bool isRequestAllFile;
 
   /// isRealModalBottom = true thì pop 1 lần, ngc lại false thì pop 2 lần để đóng Bottom sheet ảo, việc cần làm là set biến này bằng false ở những trang k dùng ModalBottomSheet
   // final bool isRealModalBottom;
@@ -37,7 +38,8 @@ class PopUpListPicker extends StatefulWidget {
       this.isCenter,
       this.imageList,
       required this.isWarning,
-      required this.isAccess
+      required this.isAccess,
+      required this.isRequestAllFile
       //this.isRealModalBottom
       })
       : super(key: key);
@@ -368,7 +370,9 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                       devider(),
                                       cancelChooseFile(context),
                                       widget.isAccess == false
-                                          ? chooseSuggest(context)
+                                          ? widget.isRequestAllFile
+                                              ? chooseSuggest(context)
+                                              : SizedBox()
                                           : SizedBox(),
                                     ],
                                   ),

@@ -74,7 +74,7 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
               children: [
                 Padding(
                   padding: EdgeInsets.only(
-                      top: MediaQuery.of(context).size.height / 4.7,
+                      top: MediaQuery.of(context).size.height / 5.7,
                       left: 16.0,
                       right: 16.0),
                   child: SizedBox(

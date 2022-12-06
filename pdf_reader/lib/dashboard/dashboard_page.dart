@@ -33,6 +33,7 @@ import 'package:tiengviet/tiengviet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_state.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class DashboardHome extends StatelessWidget {
   DashboardHome({Key? key}) : super(key: key);
@@ -71,6 +72,9 @@ class _DashboardPageState extends State<DashboardPage>
   bool isDownloadFolder = false;
   bool isSearch = false;
   bool isFirstSlide = false;
+  bool isPermission = false;
+  var androidInfo;
+  var sdkInt;
   int? countPermis;
   late final Box pdfBox;
   late final Box pdfPrivateBox;
@@ -1630,7 +1634,8 @@ class _DashboardPageState extends State<DashboardPage>
         var docassets = Directory(pathFolder)
             .listSync(recursive: false, followLinks: false)
             .where((e) => e is File);
-        for (FileSystemEntity asset in docassets) {
+        for (FileSystemEntity asset in 
+        docassets) {
           if (asset is File) {
             String name = path.basename(asset.path);
             if (name.endsWith('.pdf') || name.endsWith('.PDF')) {
@@ -1914,6 +1919,7 @@ class _DashboardPageState extends State<DashboardPage>
       // Close bottomsheet
       Navigator.pop(context);
       // Check permission storage
+      androidInfo = await DeviceInfoPlugin().androidInfo;
       var isPermission = await getPermission();
       // Show Dialog
 
@@ -2078,20 +2084,43 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<bool> getPermission() async {
-    if (countPermis == null || countPermis == 0) {
-      if (await Permission.manageExternalStorage.isGranted) {
-        return true;
-      } else {
-        var permission = await Permission.manageExternalStorage.request();
-        await conutPermissBox.put('count', 1);
-        if (permission.isGranted) {
-          return true;
+    sdkInt = androidInfo.version.sdkInt ?? 0;
+    if (Platform.isAndroid) {
+      if (sdkInt >= 30) {
+        if (countPermis == null || countPermis == 0) {
+          if (await Permission.manageExternalStorage.isGranted) {
+            return true;
+          } else {
+            var permission = await Permission.manageExternalStorage.request();
+            await conutPermissBox.put('count', 1);
+            if (permission.isGranted) {
+              return true;
+            } else {
+              return false;
+            }
+          }
         } else {
-          return false;
+          return await Permission.manageExternalStorage.isGranted;
+        }
+      } else {
+        if (countPermis == null || countPermis == 0) {
+          if (await Permission.storage.isGranted) {
+            return true;
+          } else {
+            var permission = await Permission.storage.request();
+            await conutPermissBox.put('count', 1);
+            if (permission.isGranted) {
+              return true;
+            } else {
+              return false;
+            }
+          }
+        } else {
+          return await Permission.manageExternalStorage.isGranted;
         }
       }
     } else {
-      return await Permission.manageExternalStorage.isGranted;
+      return false;
     }
   }
 
@@ -2178,7 +2207,7 @@ class _DashboardPageState extends State<DashboardPage>
           if (isPermis.isGranted) {
             Navigator.pop(context);
             // Check permission storage
-            var isPermission = await getPermission();
+            isPermission = await getPermission();
             // Show Dialog
 
             showDialogAddFile(
@@ -2207,20 +2236,24 @@ class _DashboardPageState extends State<DashboardPage>
                 isPermission: isPermission,
                 isNightMode: isNightMode);
           } else {
-            WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
-                  messageText: Text(
-                      'External storage access is denied, so the list of suggestions will be hidden',
-                      style: TextStyle(color: Colors.white)),
-                  icon: Icon(Icons.warning_amber_rounded,
-                      color: Colors.yellowAccent[100]),
-                  backgroundColor: Colors.yellow[700]!,
-                  flushbarPosition: FlushbarPosition.TOP,
-                  duration: Duration(seconds: 3),
-                )..show(context));
+            if (sdkInt >= 30) {
+              WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
+                    messageText: Text(
+                        'External storage access is denied, so the list of suggestions will be hidden',
+                        style: TextStyle(color: Colors.white)),
+                    icon: Icon(Icons.warning_amber_rounded,
+                        color: Colors.yellowAccent[100]),
+                    backgroundColor: Colors.yellow[700]!,
+                    flushbarPosition: FlushbarPosition.TOP,
+                    duration: Duration(seconds: 3),
+                  )..show(context));
+            }
           }
         },
         isAccess: isAccess,
         isWarning: isWarning,
+        isRequestAllFile: sdkInt >= 30,
+        // 30 is android 11
       ),
     ));
   }
