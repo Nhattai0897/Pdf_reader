@@ -370,9 +370,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                       devider(),
                                       cancelChooseFile(context),
                                       widget.isAccess == false
-                                          ? widget.isRequestAllFile
-                                              ? chooseSuggest(context)
-                                              : SizedBox()
+                                          ? chooseSuggest(context)
                                           : SizedBox(),
                                     ],
                                   ),

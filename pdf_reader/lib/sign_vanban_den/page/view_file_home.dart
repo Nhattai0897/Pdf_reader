@@ -333,11 +333,14 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                             const EdgeInsets.only(right: 15.0),
                                         child: Image.asset('assets/loading.gif',
                                             width: 85)),
-                            SizedBox(height: 5),
+                            SizedBox(
+                                height: isShowError == false && isEdit == true
+                                    ? 0
+                                    : 10),
                             Text(isShowError
                                 ? "Unable to load document!"
                                 : isEdit
-                                    ? "Document saving..."
+                                    ? " Document saving..."
                                     : widget.isUrl
                                         ? "Document loading (${percent.toStringAsFixed(1)}%)"
                                         : "Document loading...")
@@ -383,8 +386,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                     children: [
                                       Image.asset('assets/progress_save.gif',
                                           width: 100),
-                                      SizedBox(height: 10),
-                                      Text("Document saving...")
+                                      Text(" Document saving...")
                                     ],
                                   )),
                                 ),

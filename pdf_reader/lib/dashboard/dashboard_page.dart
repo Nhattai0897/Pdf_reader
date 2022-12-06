@@ -1634,8 +1634,7 @@ class _DashboardPageState extends State<DashboardPage>
         var docassets = Directory(pathFolder)
             .listSync(recursive: false, followLinks: false)
             .where((e) => e is File);
-        for (FileSystemEntity asset in 
-        docassets) {
+        for (FileSystemEntity asset in docassets) {
           if (asset is File) {
             String name = path.basename(asset.path);
             if (name.endsWith('.pdf') || name.endsWith('.PDF')) {
@@ -2203,50 +2202,110 @@ class _DashboardPageState extends State<DashboardPage>
         isDownloadFolder: isDownloadFolder,
         isZalo: isZalo,
         onRequsetPermis: () async {
-          var isPermis = await Permission.manageExternalStorage.request();
-          if (isPermis.isGranted) {
-            Navigator.pop(context);
-            // Check permission storage
-            isPermission = await getPermission();
-            // Show Dialog
+          if (sdkInt >= 30) {
+            var isPermis = await Permission.manageExternalStorage.request();
+            if (isPermis.isGranted) {
+              Navigator.pop(context);
+              // Check permission storage
+              isPermission = await getPermission();
+              // Show Dialog
 
-            showDialogAddFile(
-                onResult: (data) async {
-                  var pathFile = data.keys.toString();
-                  var subLink = pathFile.substring(1, pathFile.length - 1);
-                  await Future.delayed(Duration(milliseconds: 20));
-                  var linkResultFile = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => ViewFileMain(
-                              isNightMode: isNightMode,
-                              isUrl: false,
-                              fileKyTen: subLink,
-                              isKySo: true,
-                              isUseMauChuKy: true,
-                              isPublic: tabController.index == 0,
-                            )),
-                  );
-                  addPublicItem(PDFModel(
-                    isEdit: false,
-                    pathFile: linkResultFile,
-                    timeOpen: DateTime.now(),
-                  ));
-                },
-                isPermission: isPermission,
-                isNightMode: isNightMode);
+              showDialogAddFile(
+                  onResult: (data) async {
+                    var pathFile = data.keys.toString();
+                    var subLink = pathFile.substring(1, pathFile.length - 1);
+                    await Future.delayed(Duration(milliseconds: 20));
+                    var linkResultFile = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ViewFileMain(
+                                isNightMode: isNightMode,
+                                isUrl: false,
+                                fileKyTen: subLink,
+                                isKySo: true,
+                                isUseMauChuKy: true,
+                                isPublic: tabController.index == 0,
+                              )),
+                    );
+                    addPublicItem(PDFModel(
+                      isEdit: false,
+                      pathFile: linkResultFile,
+                      timeOpen: DateTime.now(),
+                    ));
+                  },
+                  isPermission: isPermission,
+                  isNightMode: isNightMode);
+            } else {
+              if (sdkInt >= 30) {
+                WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
+                      messageText: Text(
+                          'External storage access is denied, so the list of suggestions will be hidden',
+                          style: TextStyle(color: Colors.white)),
+                      icon: Icon(Icons.warning_amber_rounded,
+                          color: Colors.yellowAccent[100]),
+                      backgroundColor: Colors.yellow[700]!,
+                      flushbarPosition: FlushbarPosition.TOP,
+                      duration: Duration(seconds: 3),
+                    )..show(context));
+              }
+            }
           } else {
-            if (sdkInt >= 30) {
-              WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
-                    messageText: Text(
-                        'External storage access is denied, so the list of suggestions will be hidden',
-                        style: TextStyle(color: Colors.white)),
-                    icon: Icon(Icons.warning_amber_rounded,
-                        color: Colors.yellowAccent[100]),
-                    backgroundColor: Colors.yellow[700]!,
-                    flushbarPosition: FlushbarPosition.TOP,
-                    duration: Duration(seconds: 3),
-                  )..show(context));
+            if (await Permission.storage.isGranted) {
+              Navigator.pop(context);
+              var permission = await Permission.storage.request();
+              showDialogAddFile(
+                  onResult: (data) async {
+                    var pathFile = data.keys.toString();
+                    var subLink = pathFile.substring(1, pathFile.length - 1);
+                    await Future.delayed(Duration(milliseconds: 20));
+                    var linkResultFile = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ViewFileMain(
+                                isNightMode: isNightMode,
+                                isUrl: false,
+                                fileKyTen: subLink,
+                                isKySo: true,
+                                isUseMauChuKy: true,
+                                isPublic: tabController.index == 0,
+                              )),
+                    );
+                    addPublicItem(PDFModel(
+                      isEdit: false,
+                      pathFile: linkResultFile,
+                      timeOpen: DateTime.now(),
+                    ));
+                  },
+                  isPermission: permission.isGranted,
+                  isNightMode: isNightMode);
+            } else {
+              Navigator.pop(context);
+              var permission = await Permission.storage.request();
+              showDialogAddFile(
+                  onResult: (data) async {
+                    var pathFile = data.keys.toString();
+                    var subLink = pathFile.substring(1, pathFile.length - 1);
+                    await Future.delayed(Duration(milliseconds: 20));
+                    var linkResultFile = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ViewFileMain(
+                                isNightMode: isNightMode,
+                                isUrl: false,
+                                fileKyTen: subLink,
+                                isKySo: true,
+                                isUseMauChuKy: true,
+                                isPublic: tabController.index == 0,
+                              )),
+                    );
+                    addPublicItem(PDFModel(
+                      isEdit: false,
+                      pathFile: linkResultFile,
+                      timeOpen: DateTime.now(),
+                    ));
+                  },
+                  isPermission: permission.isGranted,
+                  isNightMode: isNightMode);
             }
           }
         },
