@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -14,8 +15,6 @@ class DashboardBloc extends Cubit<DashboardState> {
 
   DashboardBloc()
       : super(DashboardState(
-          publicCount: 0,
-          privateCount: 0,
           countEditPublic: 0,
           totalSizePublic: "0",
           percent: 0.0,
@@ -46,10 +45,6 @@ class DashboardBloc extends Cubit<DashboardState> {
       ..userInteractions = true
       ..dismissOnTap = false;
   }
-
-  void updatePublicCount(int count) => emit(state.copyWith(publicCount: count));
-  void updatePrivateCount(int count) =>
-      emit(state.copyWith(privateCount: count));
 
   void onChangeDay() => emit(state.copyWith(isNight: !state.isNight));
 
@@ -86,15 +81,13 @@ class DashboardBloc extends Cubit<DashboardState> {
     }
     var convertSize = formatBytes(totalSize, 2);
     var percent = await _getPercent();
-    state.indexTab == 0
-        ? emit(state.copyWith(
-            countEditPublic: fileNum,
-            totalSizePublic: convertSize,
-            percent: percent))
-        : emit(state.copyWith(
-            countEditPrivate: fileNum,
-            totalSizePrivate: convertSize,
-            percent: percent));
+    if (state.indexTab == 0) {
+      emit(state.copyWith(totalSizePublic: convertSize, percent: percent));
+      pushpublicEditCountData(fileNum);
+    } else {
+      emit(state.copyWith(totalSizePrivate: convertSize, percent: percent));
+      pushPrivateEditData(fileNum);
+    }
   }
 
   Future<double> _getPercent() async {
@@ -105,8 +98,6 @@ class DashboardBloc extends Cubit<DashboardState> {
 
   static String formatBytes(int bytes, int decimals) {
     if (bytes <= 0) return "0";
-    // var i = (log(bytes) / log(1024)).floor();
-    // return ((bytes / pow(1024, i)).toStringAsFixed(decimals));
     var mb = bytes / 1000 / 1000;
     return mb.toStringAsFixed(decimals);
   }
@@ -132,6 +123,53 @@ class DashboardBloc extends Cubit<DashboardState> {
                 : Colors.red[100],
       ),
     );
+  }
+
+  //////////// publicEditCount ///////////
+
+  final StreamController<int> publicCountController =
+      StreamController<int>.broadcast();
+
+  Stream<int> get streampublicEditCount => publicCountController.stream;
+
+  void pushpublicEditCountData(int publicCount) =>
+      publicCountController.sink.add(publicCount);
+
+  ////////////  privateEditCount ///////////
+
+  final StreamController<int> privateCountController =
+      StreamController<int>.broadcast();
+
+  Stream<int> get streamPrivateEditCount => privateCountController.stream;
+
+  void pushPrivateEditData(int privateCount) =>
+      privateCountController.sink.add(privateCount);
+
+  //////////// private Total ///////////
+
+  final StreamController<int> privateTotalController =
+      StreamController<int>.broadcast();
+
+  Stream<int> get streamPrivateTotal => privateTotalController.stream;
+
+  void pushPrivateTotalData(int privateCount) =>
+      privateTotalController.sink.add(privateCount);
+
+  //////////// public Total ///////////
+
+  final StreamController<int> publicTotalController =
+      StreamController<int>.broadcast();
+
+  Stream<int> get streamPublicTotal => publicTotalController.stream;
+
+  void pushPublicTotalData(int publicCount) =>
+      publicTotalController.sink.add(publicCount);
+
+  void dispose() {
+    publicCountController.close();
+    privateCountController.close();
+    privateTotalController.close();
+    publicTotalController.close();
   }
 
   void searchAction(bool isSearch) => emit(state.copyWith(isSearch: isSearch));

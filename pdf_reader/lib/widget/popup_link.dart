@@ -3,7 +3,7 @@ import 'package:another_flushbar/flushbar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
-
+import 'package:flutter/services.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
@@ -59,6 +59,10 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
     super.initState();
     widget.isCenter != null ? widget.isCenter : true;
     showIcon(false);
+    WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      var cdata = await Clipboard.getData(Clipboard.kTextPlain);
+      textController.text = cdata?.text ?? "";
+    });
   }
 
   @override
@@ -210,7 +214,7 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
         return;
       }
 
-      getLink(qrResult); 
+      getLink(qrResult);
     } catch (e) {
       Flushbar(
         messageText: Text("QR code scanning failed",

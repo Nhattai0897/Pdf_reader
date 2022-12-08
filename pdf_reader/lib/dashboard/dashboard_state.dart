@@ -4,9 +4,7 @@ class DashboardState {
   BlocBuilderStatusCase? status;
   bool isNight;
   bool isPublish;
-  bool isSearch;
-  int publicCount;
-  int privateCount;
+  bool isSearch; 
   int countEditPublic;
   String totalSizePublic;
   double percent;
@@ -17,9 +15,7 @@ class DashboardState {
       {this.status = BlocBuilderStatusCase.initial,
       this.isNight = false,
       this.isPublish = true,
-      this.isSearch = false,
-      required this.publicCount,
-      required this.privateCount,
+      this.isSearch = false, 
       required this.countEditPublic,
       required this.totalSizePublic,
       required this.countEditPrivate,
@@ -30,10 +26,7 @@ class DashboardState {
       {BlocBuilderStatusCase? status,
       bool? isNight,
       bool? isPublish,
-      bool? isSearch,
-      int? publicCount,
-      int? privateCount,
-      int? privateCoun,
+      bool? isSearch, 
       int? countEditPublic,
       String? totalSizePublic,
       int? countEditPrivate,
@@ -44,9 +37,7 @@ class DashboardState {
         status: status ?? this.status,
         isNight: isNight ?? this.isNight,
         isPublish: isPublish ?? this.isPublish,
-        isSearch: isSearch ?? this.isSearch,
-        publicCount: publicCount ?? this.publicCount,
-        privateCount: privateCount ?? this.privateCount,
+        isSearch: isSearch ?? this.isSearch, 
         totalSizePublic: totalSizePublic ?? this.totalSizePublic,
         countEditPublic: countEditPublic ?? this.countEditPublic,
         percent: percent ?? this.percent,

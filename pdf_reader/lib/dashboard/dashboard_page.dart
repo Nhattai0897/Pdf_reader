@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'dart:math' as math;
 import 'package:another_flushbar/flushbar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +54,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late DashboardBloc bloc;
   late double heightAppbar, screenWidth, screenHeight;
   late AnimationController _controllerRotateLightDark;
@@ -66,6 +67,7 @@ class _DashboardPageState extends State<DashboardPage>
   late Animation<Color?> animation;
   late AnimationController controller;
   String msg = "You are not authorized.";
+  String dir = "";
   List<MenuItemProvider> itemDropdown = [];
   bool isAuthen = false;
   bool isZalo = false;
@@ -75,6 +77,7 @@ class _DashboardPageState extends State<DashboardPage>
   bool isPermission = false;
   var androidInfo;
   var sdkInt;
+  var dio;
   int? countPermis;
   late final Box pdfBox;
   late final Box pdfPrivateBox;
@@ -102,6 +105,8 @@ class _DashboardPageState extends State<DashboardPage>
   void initState() {
     // TODO: implement initState
     super.initState();
+    WidgetsBinding.instance!.addObserver(this);
+    dio = Dio();
     pdfBox = Hive.box('pdfBox');
     pdfPrivateBox = Hive.box('pdfPriavteBox');
     conutPermissBox = Hive.box('countPermisBox');
@@ -138,6 +143,33 @@ class _DashboardPageState extends State<DashboardPage>
         }
       });
     getPrivatePath();
+    getDirPath();
+
+    WidgetsBinding.instance!
+        .addPostFrameCallback((_) => reDownloadFilePending());
+  }
+
+  @override
+  didChangeAppLifecycleState(AppLifecycleState state) {
+    if (AppLifecycleState.paused == state) {
+      for (var i = 0; i < publicCloneList.length; i++) {
+        if (publicCloneList[i].isDownloadSuccess == "improgress") {
+          var item = publicCloneList[i];
+          _updateItem(
+              pdfModel: PDFModel(
+                  currentIndex: item.currentIndex,
+                  isDownloadSuccess: 'pending',
+                  isEdit: item.isEdit,
+                  isOpen: item.isOpen,
+                  pathFile: item.pathFile,
+                  urlLink: item.urlLink,
+                  propress: item.propress,
+                  status: item.status,
+                  timeOpen: item.timeOpen),
+              index: i);
+        }
+      }
+    }
   }
 
   Future<void> getPrivatePath() async {
@@ -146,6 +178,10 @@ class _DashboardPageState extends State<DashboardPage>
           configPathStr: 'privateFolder',
         ) ??
         "";
+  }
+
+  void getDirPath() async {
+    dir = (await getApplicationDocumentsDirectory()).path;
   }
 
   Future<void> setupCountPermiss() async {
@@ -196,6 +232,7 @@ class _DashboardPageState extends State<DashboardPage>
     _controllerRotateLightDark.dispose();
     controller.dispose();
     Hive.close();
+    bloc.dispose();
     super.dispose();
   }
 
@@ -409,7 +446,7 @@ class _DashboardPageState extends State<DashboardPage>
                               : WatchBoxBuilder(
                                   box: pdfBox,
                                   builder: (context, pdfListBox) {
-                                    bloc.updatePublicCount(pdfListBox.length);
+                                    bloc.pushPublicTotalData(pdfListBox.length);
                                     // Get list dynamic type
                                     publicCloneList = pdfListBox.values
                                         .toList()
@@ -430,7 +467,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   : WatchBoxBuilder(
                                       box: pdfPrivateBox,
                                       builder: (context, pdfListPrivateBox) {
-                                        bloc.updatePrivateCount(
+                                        bloc.pushPrivateTotalData(
                                             pdfListPrivateBox.length);
                                         // Get list dynamic type
                                         privateCloneList = pdfListPrivateBox
@@ -793,31 +830,146 @@ class _DashboardPageState extends State<DashboardPage>
                                         overflow: TextOverflow.ellipsis,
                                         style:
                                             TextStyle(color: Colors.grey[600]),
-                                      )
+                                      ),
                                     ],
                                   )),
-                                  IconButton(
-                                      splashColor: Colors.transparent,
-                                      highlightColor: Colors.transparent,
-                                      onPressed: () async {
-                                        isFirstSlide = true;
-                                        Slidable.of(ctx)
-                                                    ?.animation
-                                                    .isCompleted ==
-                                                true
-                                            ? Slidable.of(ctx)?.close()
-                                            : Slidable.of(ctx)
-                                                ?.openEndActionPane();
-                                        if (pdfItem.isOpen != null &&
-                                            pdfItem.isOpen == true) {
-                                          await handleCloseAllList(pdfListBox);
-                                        } else {
-                                          handleList(
-                                              pdfListBox, index, pdfItem);
-                                        }
-                                      },
-                                      icon: Icon(Icons.more_horiz_rounded,
-                                          size: 20))
+                                  pdfItem.propress != null &&
+                                          pdfItem.urlLink != null &&
+                                          pdfItem.urlLink != "" &&
+                                          pdfItem.isDownloadSuccess ==
+                                              "improgress"
+                                      ? Padding(
+                                          padding:
+                                              const EdgeInsets.only(right: 8.0),
+                                          child: Container(
+                                            child: CircularPercentIndicator(
+                                              radius: 16.0,
+                                              lineWidth: 2.5,
+                                              percent: pdfItem.propress! / 100,
+                                              center: pdfItem.propress! / 100 ==
+                                                      0.0
+                                                  ? Icon(
+                                                      Icons.download,
+                                                      color: Colors.green,
+                                                      size: 18,
+                                                    )
+                                                  : new Text(
+                                                      pdfItem.propress!
+                                                              .toStringAsFixed(
+                                                                  1) +
+                                                          "%",
+                                                      style: TextStyle(
+                                                          fontSize: 9,
+                                                          fontWeight:
+                                                              FontWeight.w700),
+                                                    ),
+                                              progressColor: Colors.green,
+                                            ),
+                                          ),
+                                        )
+                                      : pdfItem.propress != null &&
+                                                  pdfItem.urlLink != null &&
+                                                  pdfItem.urlLink != "" &&
+                                                  pdfItem.isDownloadSuccess ==
+                                                      "fail" ||
+                                              pdfItem.isDownloadSuccess ==
+                                                  "pending"
+                                          ? Row(
+                                              children: [
+                                                InkWell(
+                                                  onTap: () {
+                                                    Slidable.of(ctx)?.close();
+                                                    _deleteItemList(index);
+                                                  },
+                                                  child: Padding(
+                                                    padding: const EdgeInsets
+                                                            .symmetric(
+                                                        horizontal: 10),
+                                                    child: Icon(Icons.delete,
+                                                        color: Colors.red,
+                                                        size: 20),
+                                                  ),
+                                                ),
+                                                InkWell(
+                                                  onTap: () async {
+                                                    isFirstSlide = true;
+                                                    Slidable.of(ctx)?.close();
+                                                    var linkDownload =
+                                                        await downloadFilePDF(
+                                                            pdfItem.urlLink ??
+                                                                "",
+                                                            index,
+                                                            pdfItem);
+                                                    // Update final pathFile: linkDownload
+                                                    if (linkDownload != null) {
+                                                      _updateItem(
+                                                          pdfModel: PDFModel(
+                                                            pathFile:
+                                                                linkDownload,
+                                                            isDownloadSuccess:
+                                                                "success",
+                                                            urlLink: pdfItem
+                                                                    .urlLink ??
+                                                                "",
+                                                            timeOpen: pdfItem
+                                                                .timeOpen,
+                                                          ),
+                                                          index: index);
+                                                    } else {
+                                                      _updateItem(
+                                                          pdfModel: PDFModel(
+                                                            pathFile: pdfItem
+                                                                    .urlLink ??
+                                                                "",
+                                                            isDownloadSuccess:
+                                                                "fail",
+                                                            urlLink: pdfItem
+                                                                    .urlLink ??
+                                                                "",
+                                                            timeOpen: pdfItem
+                                                                .timeOpen,
+                                                          ),
+                                                          index: index);
+                                                    }
+                                                  },
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            left: 10.0,
+                                                            right: 15.0),
+                                                    child: Icon(
+                                                        Icons.replay_outlined,
+                                                        color: Colors.red,
+                                                        size: 20),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : IconButton(
+                                              splashColor: Colors.transparent,
+                                              highlightColor:
+                                                  Colors.transparent,
+                                              onPressed: () async {
+                                                isFirstSlide = true;
+                                                Slidable.of(ctx)
+                                                            ?.animation
+                                                            .isCompleted ==
+                                                        true
+                                                    ? Slidable.of(ctx)?.close()
+                                                    : Slidable.of(ctx)
+                                                        ?.openEndActionPane();
+                                                if (pdfItem.isOpen != null &&
+                                                    pdfItem.isOpen == true) {
+                                                  await handleCloseAllList(
+                                                      pdfListBox);
+                                                } else {
+                                                  handleList(pdfListBox, index,
+                                                      pdfItem);
+                                                }
+                                              },
+                                              icon: Icon(
+                                                  Icons.more_horiz_rounded,
+                                                  size: 20)),
                                 ],
                               ),
                             );
@@ -842,6 +994,9 @@ class _DashboardPageState extends State<DashboardPage>
               timeOpen: pdfItem.timeOpen,
               currentIndex: pdfItem.currentIndex,
               isEdit: pdfItem.isEdit,
+              isDownloadSuccess: pdfItem.isDownloadSuccess,
+              propress: pdfItem.propress,
+              urlLink: pdfItem.urlLink,
               isOpen: false),
           index: i);
     }
@@ -905,6 +1060,7 @@ class _DashboardPageState extends State<DashboardPage>
                       pdfModel: PDFModel(
                           pathFile: linkResult,
                           timeOpen: DateTime.now(),
+                          isDownloadSuccess: pdfItem.isDownloadSuccess,
                           currentIndex: pdfItem.currentIndex,
                           isEdit: pdfItem.isEdit,
                           isOpen: pdfItem.isOpen),
@@ -1146,6 +1302,27 @@ class _DashboardPageState extends State<DashboardPage>
         : buildEmptyPublish();
   }
 
+  Future<void> reDownloadFilePending() async {
+    for (var i = 0; i < publicCloneList.length; i++) {
+      var propress = publicCloneList[i].propress ?? 0;
+      if (propress > 0 && propress < 100) {
+        var linkDownload = await downloadFilePDF(
+            publicCloneList[i].urlLink ?? "", i, publicCloneList[i]);
+        // Update final pathFile: linkDownload
+        if (linkDownload != null) {
+          await _updateItem(
+              pdfModel: PDFModel(
+                pathFile: linkDownload,
+                isDownloadSuccess: "success",
+                urlLink: publicCloneList[i].urlLink ?? "",
+                timeOpen: publicCloneList[i].timeOpen,
+              ),
+              index: i);
+        }
+      }
+    }
+  }
+
   void buildNotFoundDialog(int index, PDFModel pdfItem, bool isPublic) {
     showDialog(
         context: context,
@@ -1196,7 +1373,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: Container(
                           width: 60,
                           child: Image.asset('assets/lock_confirm.gif'))),
-                  new Text(
+                  Text(
                     isPublic
                         ? "Are you sure you want to make this file private?"
                         : "Are you sure you want to make this file public?",
@@ -1260,18 +1437,37 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(bottom: 2.0),
         child: InkWell(
-          onTap: () {
+          onTap: () async {
             Navigator.of(context).pop();
-            isPublic ? _deleteItemList(index) : _deleteItemPrivateList(index);
+            if (isPublic) {
+              _deleteItemList(index);
+            } else {
+              _deleteItemPrivateList(index);
+            }
             if (isSearch && isPublic) {
               setState(() {
                 publicSearchCurrentList.removeAt(indexSearch);
               });
+              if (pdfModel.isEdit == true) {
+                await File(pdfModel.pathFile ?? '').delete();
+              }
+            } else if (!isSearch && isPublic) {
+              if (pdfModel.isEdit == true) {
+                await File(pdfModel.pathFile ?? '').delete();
+              }
             } else if (isSearch && !isPublic) {
               setState(() {
                 privateSearchCurrentList.removeAt(indexSearch);
               });
+              if (pdfModel.isEdit == true) {
+                await File(pdfModel.pathFile ?? '').delete();
+              }
+            } else if (!isSearch && !isPublic) {
+              if (pdfModel.isEdit == true) {
+                await File(pdfModel.pathFile ?? '').delete();
+              }
             }
+            await bloc.setupTotalData();
           },
           child: Container(
               decoration: BoxDecoration(
@@ -1971,40 +2167,146 @@ class _DashboardPageState extends State<DashboardPage>
             var path = url.keys.toString();
             var subLink = path.substring(1, path.length - 1);
             Navigator.pop(context);
-            var linkResult = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => ViewFileMain(
-                        isNightMode: state.isNight,
-                        isUrl: true,
-                        fileKyTen: subLink,
-                        isKySo: true,
-                        isUseMauChuKy: true,
-                        isPublic: tabController.index == 0,
-                      )),
-            );
-            if (linkResult != 'error') {
-              int indexItem = publicCloneList
-                  .indexWhere((element) => element.urlLink == subLink);
-              if (indexItem == -1) {
-                addPublicItem(PDFModel(
-                  pathFile: linkResult,
+            var indexExists = publicCloneList.indexWhere((element) =>
+                element.urlLink == subLink && element.isEdit == false);
+            if (indexExists == -1) {
+              //Create new model temp
+              var newPDF = PDFModel(
                   urlLink: subLink,
+                  pathFile: subLink,
+                  propress: 0,
                   timeOpen: DateTime.now(),
-                ));
+                  isDownloadSuccess: "none");
+              // Add New item model
+              await addPublicItem(newPDF);
+              await Future.delayed(Duration(milliseconds: 200));
+              // Get index for check Exists
+              var indexwhere = publicCloneList.indexWhere((element) =>
+                  element.urlLink == subLink &&
+                  !element.pathFile!.contains("_edit_"));
+              if (indexwhere != -1) {
+                var linkDownload = await downloadFilePDF(
+                    subLink, indexwhere, publicCloneList[indexwhere]);
+
+                // Update final pathFile: linkDownload
+                _updateItem(
+                    pdfModel: PDFModel(
+                      status: linkDownload != null ? "ready" : "none",
+                      isDownloadSuccess: linkDownload != null ? "true" : "fail",
+                      pathFile: linkDownload != null ? linkDownload : subLink,
+                      urlLink: subLink,
+                      timeOpen: publicCloneList[indexwhere].timeOpen,
+                    ),
+                    index: indexwhere);
+                bloc.setupTotalData();
               } else {
-                _deleteItemList(indexItem);
-                addPublicItem(PDFModel(
-                    currentIndex: publicCloneList[indexItem].currentIndex,
-                    urlLink: publicCloneList[indexItem].urlLink,
-                    isEdit: publicCloneList[indexItem].isEdit,
-                    isOpen: publicCloneList[indexItem].isOpen,
-                    pathFile: publicCloneList[indexItem].pathFile,
-                    timeOpen: DateTime.now()));
+                Flushbar(
+                  messageText: Text("Download failed, please try again",
+                      style: TextStyle(color: Colors.white)),
+                  icon: Icon(Icons.warning, color: Colors.red[100]),
+                  backgroundColor: Colors.red,
+                  flushbarPosition: FlushbarPosition.TOP,
+                  duration: Duration(milliseconds: 3000),
+                )..show(context);
               }
+            } else {
+              Flushbar(
+                messageText: Text(
+                    "File already exists, please check the file list again",
+                    style: TextStyle(color: Colors.white)),
+                icon: Icon(Icons.warning_amber_rounded,
+                    color: Colors.yellowAccent[100]),
+                backgroundColor: Colors.yellow[700]!,
+                flushbarPosition: FlushbarPosition.TOP,
+                duration: Duration(milliseconds: 3000),
+              )..show(context);
             }
           });
     });
+  }
+
+  Future<String?> downloadFilePDF(
+      String link, int index, PDFModel pdfModel) async {
+    try {
+      Flushbar(
+        messageText: Text(
+            "ile is downloading, please wait for the process to complete!",
+            style: TextStyle(color: Colors.white)),
+        icon: Icon(Icons.download, color: Colors.green[100]),
+        backgroundColor: Colors.green[600]!,
+        flushbarPosition: FlushbarPosition.TOP,
+        duration: Duration(milliseconds: 3000),
+      )..show(context);
+      if (dir == "") dir = (await getApplicationDocumentsDirectory()).path;
+      final filename = link.substring(link.lastIndexOf("/") + 1);
+      Response response = await dio.download(link, '$dir/$filename',
+          options: Options(
+              responseType: ResponseType.bytes,
+              followRedirects: false,
+              receiveDataWhenStatusError: true,
+              sendTimeout: 10000) // 60 seconds,
+          , onReceiveProgress: (count, total) async {
+        await pdfBox.putAt(
+            index,
+            PDFModel(
+                currentIndex: pdfModel.currentIndex,
+                isEdit: pdfModel.isEdit,
+                isOpen: pdfModel.isOpen,
+                pathFile: pdfModel.pathFile,
+                isDownloadSuccess: "improgress",
+                propress: (count / total) * 100,
+                timeOpen: pdfModel.timeOpen,
+                urlLink: pdfModel.urlLink));
+      });
+      if (response.statusCode != 404) {
+        await pdfBox.putAt(
+            index,
+            PDFModel(
+                currentIndex: pdfModel.currentIndex,
+                isEdit: pdfModel.isEdit,
+                isOpen: pdfModel.isOpen,
+                pathFile: pdfModel.pathFile,
+                isDownloadSuccess: "success",
+                status: "true",
+                propress: 100,
+                timeOpen: pdfModel.timeOpen,
+                urlLink: pdfModel.urlLink));
+        return '$dir/$filename';
+      } else {
+        await pushFail(index, pdfModel);
+        pushFailFlusbar();
+        return null;
+      }
+    } catch (e) {
+      await pushFail(index, pdfModel);
+      pushFailFlusbar();
+      return null;
+    }
+  }
+
+  void pushFailFlusbar() {
+    Flushbar(
+      messageText: Text("Download failed, please try again",
+          style: TextStyle(color: Colors.white)),
+      icon: Icon(Icons.close, color: Colors.red[100]),
+      backgroundColor: Colors.red,
+      flushbarPosition: FlushbarPosition.TOP,
+      duration: Duration(milliseconds: 3000),
+    )..show(context);
+  }
+
+  Future<void> pushFail(int index, PDFModel pdfModel) async {
+    await pdfBox.putAt(
+        index,
+        PDFModel(
+            currentIndex: pdfModel.currentIndex,
+            isEdit: pdfModel.isEdit,
+            isOpen: pdfModel.isOpen,
+            pathFile: pdfModel.pathFile,
+            isDownloadSuccess: "fail",
+            propress: 50,
+            timeOpen: pdfModel.timeOpen,
+            urlLink: pdfModel.urlLink));
   }
 
   Row futureBuild() {
@@ -2972,36 +3274,57 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(left: 8.0, top: 3),
-                      child: Text(
-                        tabController.index == 0
-                            ? '${state.publicCount} files'
-                            : isAuthen
-                                ? '${state.privateCount} private files'
-                                : 'Private files',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color.fromRGBO(118, 71, 248, 1.0)),
-                      ),
+                      child: StreamBuilder<int>(
+                          stream: bloc.streamPublicTotal,
+                          builder: (context, snapshot) {
+                            var totalPublic = snapshot.data ?? 0;
+                            return StreamBuilder<int>(
+                                stream: bloc.streamPrivateTotal,
+                                builder: (context, snapshot) {
+                                  var totalPrivate = snapshot.data ?? 0;
+                                  return Text(
+                                    tabController.index == 0
+                                        ? '$totalPublic files'
+                                        : isAuthen
+                                            ? '$totalPrivate private files'
+                                            : 'Private files',
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color:
+                                            Color.fromRGBO(118, 71, 248, 1.0)),
+                                  );
+                                });
+                          }),
                     ),
                     Padding(
                       padding: const EdgeInsets.only(left: 8.0, top: 3.0),
-                      child: Text(
-                        tabController.index == 0
-                            ? state.countEditPublic == 1
-                                ? '(${state.countEditPublic} edit file, total size: ${state.totalSizePublic} MB)'
-                                : '(${state.countEditPublic} edit files, total size: ${state.totalSizePublic} MB)'
-                            : isAuthen
-                                ? state.countEditPrivate == 1
-                                    ? '(${state.countEditPrivate} edit file, total size: ${state.totalSizePrivate} MB)'
-                                    : '(${state.countEditPrivate} edit files, total size: ${state.totalSizePrivate} MB)'
-                                : "Free space",
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey[400]),
-                      ),
+                      child: StreamBuilder<int>(
+                          stream: bloc.streampublicEditCount,
+                          builder: (context, snapshot) {
+                            var publicCount = snapshot.data ?? 0;
+                            return StreamBuilder<int>(
+                                stream: bloc.streamPrivateEditCount,
+                                builder: (context, snapshot) {
+                                  var privateCount = snapshot.data ?? 0;
+                                  return Text(
+                                    tabController.index == 0
+                                        ? publicCount == 1
+                                            ? '($publicCount edit file, total size: ${state.totalSizePublic} MB)'
+                                            : '($publicCount edit files, total size: ${state.totalSizePublic} MB)'
+                                        : isAuthen
+                                            ? privateCount == 1
+                                                ? '($privateCount edit file, total size: ${state.totalSizePrivate} MB)'
+                                                : '($privateCount edit files, total size: ${state.totalSizePrivate} MB)'
+                                            : "Free space",
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.grey[400]),
+                                  );
+                                });
+                          }),
                     )
                   ],
                 ),
@@ -3063,10 +3386,11 @@ class _DashboardPageState extends State<DashboardPage>
                 tabController.index == 0
                     ? buttonTabbar(title: 'Recent')
                     : InkWell(
-                        onTap: () {
+                        onTap: () async {
                           closeSearch();
                           setState(() => tabController.index = 0);
                           bloc.emitIndex(0);
+                          await bloc.setupTotalData();
                         },
                         child: SizedBox(
                           height: 45,
@@ -3113,9 +3437,10 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget buttonTabbar({required String title}) {
     return InkWell(
-      onTap: () {
+      onTap: () async {
         closeSearch();
         setState(() => tabController.index = title == 'Private' ? 1 : 0);
+        await bloc.setupTotalData();
       },
       child: Padding(
         padding: const EdgeInsets.all(4.0),
