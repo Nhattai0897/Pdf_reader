@@ -3802,53 +3802,56 @@ class _DashboardPageState extends State<DashboardPage>
           children: [
             Row(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0, top: 3),
-                      child: Text(
-                        tabController.index == 0
-                            ? totalPublic == 1
-                                ? '$totalPublic ${Language.of(context)!.trans("file")}'
-                                : '$totalPublic ${Language.of(context)!.trans("files")}'
-                            : isAuthen
-                                ? totalPrivate == 1
-                                    ? '$totalPrivate private file'
-                                    : '$totalPrivate private files'
-                                : Language.of(context)!.trans("Privatefiles") ??
-                                    "",
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color.fromRGBO(118, 71, 248, 1.0)),
-                      ),
-                    ),
-                    Padding(
-                        padding: const EdgeInsets.only(left: 8.0, top: 3.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8.0, top: 2),
                         child: Text(
                           tabController.index == 0
-                              ? publicEditCount == 1
-                                  ? '($publicEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePublic} MB)'
-                                  : '($publicEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePublic} MB)'
+                              ? totalPublic == 1
+                                  ? '$totalPublic ${Language.of(context)!.trans("file")}'
+                                  : '$totalPublic ${Language.of(context)!.trans("files")}'
                               : isAuthen
-                                  ? privateEditCount == 1
-                                      ? '($privateEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePrivate} MB)'
-                                      : '($privateEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePrivate} MB)'
-                                  : '${Language.of(context)!.trans("Freespace")}',
-                          overflow: TextOverflow.ellipsis,
+                                  ? totalPrivate == 1
+                                      ? '$totalPrivate private file'
+                                      : '$totalPrivate private files'
+                                  : Language.of(context)!
+                                          .trans("Privatefiles") ??
+                                      "",
                           style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: Colors.grey[400]),
-                        ))
-                  ],
+                              color: Color.fromRGBO(118, 71, 248, 1.0)),
+                        ),
+                      ),
+                      Padding(
+                          padding: const EdgeInsets.only(left: 8.0, top: 1.0),
+                          child: Text(
+                            tabController.index == 0
+                                ? publicEditCount == 1
+                                    ? '($publicEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePublic} MB)'
+                                    : '($publicEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePublic} MB)'
+                                : isAuthen
+                                    ? privateEditCount == 1
+                                        ? '($privateEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePrivate} MB)'
+                                        : '($privateEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePrivate} MB)'
+                                    : '${Language.of(context)!.trans("Freespace")}',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey[400]),
+                          ))
+                    ],
+                  ),
                 ),
-                Spacer(),
+                // Spacer(),
               ],
             ),
             Padding(
-              padding: EdgeInsets.only(top: 3),
+              padding: EdgeInsets.only(top: 2),
               child: new LinearPercentIndicator(
                 animation: true,
                 lineHeight: 09.8,
