@@ -23,6 +23,7 @@ class PDFModelAdapter extends TypeAdapter<PDFModel> {
       currentIndex: fields[3] as int?,
       isOpen: fields[4] as bool?,
       isEdit: fields[5] as bool?,
+      isNew: fields[10] as bool?,
       propress: fields[7] as double?,
       isDownloadSuccess: fields[8] as String?,
       status: fields[9] as String?,
@@ -32,7 +33,7 @@ class PDFModelAdapter extends TypeAdapter<PDFModel> {
   @override
   void write(BinaryWriter writer, PDFModel obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.pathFile)
       ..writeByte(2)
@@ -50,7 +51,9 @@ class PDFModelAdapter extends TypeAdapter<PDFModel> {
       ..writeByte(8)
       ..write(obj.isDownloadSuccess)
       ..writeByte(9)
-      ..write(obj.status);
+      ..write(obj.status)
+      ..writeByte(10)
+      ..write(obj.isNew);
   }
 
   @override

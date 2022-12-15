@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 import 'package:pdf_reader/widget/scan_camera/barcode_scanner.dart';
 
 class PopUpLinkPicker extends StatefulWidget {
@@ -164,7 +165,8 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 5.0),
-                                    child: Text("OR",
+                                    child: Text(
+                                        Language.of(context)!.trans("OR") ?? "",
                                         style: TextStyle(
                                             color: Colors.black,
                                             fontWeight: FontWeight.bold,
@@ -301,7 +303,7 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(15.0),
               child: Center(
-                child: Text("Cancel",
+                child: Text(Language.of(context)!.trans("Cancel") ?? "",
                     style: TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.bold,
@@ -386,8 +388,8 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
       Flushbar(
         messageText: Text(
             url == ""
-                ? "Please enter the link address!"
-                : "Please check the link address again (www.***.pdf)",
+                ? Language.of(context)!.trans("CheckLink") ?? ""
+                : Language.of(context)!.trans("FormatLink") ?? "",
             style: TextStyle(color: Colors.white)),
         icon: Icon(Icons.warning, color: Colors.yellowAccent),
         backgroundColor: Colors.amber[500]!,
@@ -430,7 +432,8 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
           if (!data.keys.toString().split(".").last.contains("pdf")) {
             try {
               Flushbar(
-                messageText: Text("Please choose pdf file!",
+                messageText: Text(
+                    Language.of(context)!.trans("ChoosePDF") ?? "",
                     style: TextStyle(color: Colors.white)),
                 icon: Icon(Icons.warning, color: Colors.yellowAccent),
                 backgroundColor: Colors.amber[500]!,

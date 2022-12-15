@@ -1,8 +1,8 @@
-
 // ignore: must_be_immutable
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:painter/painter.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 
 class ColorPickerButton extends StatefulWidget {
   PainterController controller;
@@ -80,7 +80,8 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: Text("Choose color",
+                    child: Text(
+                        Language.of(context)!.trans("ChooseColor") ?? "",
                         style: TextStyle(color: Colors.black)),
                   ),
                   BlockPicker(
@@ -91,7 +92,7 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 0),
-                    child: Text("Gray scale",
+                    child: Text(Language.of(context)!.trans("GrayScale") ?? "",
                         style: TextStyle(color: Colors.black)),
                   ),
                   Container(
@@ -112,7 +113,8 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 0),
-                    child: Text("Size", style: TextStyle(color: Colors.black)),
+                    child: Text(Language.of(context)!.trans("Size") ?? "",
+                        style: TextStyle(color: Colors.black)),
                   ),
                   Row(children: [
                     InkWell(
@@ -241,7 +243,8 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                           child: Padding(
                             padding: const EdgeInsets.all(10.0),
                             child: Center(
-                              child: Text("Cancel"),
+                              child: Text(
+                                  Language.of(context)!.trans("Cancel") ?? ""),
                             ),
                           ),
                         )),
@@ -270,7 +273,9 @@ class _ColorPickerButtonState extends State<ColorPickerButton> {
                             child: Padding(
                               padding: const EdgeInsets.all(10.0),
                               child: Center(
-                                child: Text("Confirm",
+                                child: Text(
+                                    Language.of(context)!.trans("Confirm") ??
+                                        "",
                                     style: TextStyle(color: Colors.white)),
                               ),
                             ),

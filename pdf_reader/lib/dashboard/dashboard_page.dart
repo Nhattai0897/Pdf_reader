@@ -3,12 +3,14 @@ import 'dart:io';
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:another_flushbar/flushbar.dart';
+import 'package:app_settings/app_settings.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:hive/hive.dart';
@@ -21,8 +23,11 @@ import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
 import 'package:pdf_reader/sign_vanban_den/page/view_file_home.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/modal_bottom_sheet_select_file.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 import 'package:pdf_reader/utils/format_date.dart';
 import 'package:pdf_reader/utils/networks.dart';
+import 'package:pdf_reader/utils/notification_service.dart';
+import 'package:pdf_reader/utils/shared_prefs.dart';
 import 'package:pdf_reader/widget/custom_popup_menu/popup_menu.dart';
 import 'package:pdf_reader/widget/lock_page.dart';
 import 'package:pdf_reader/widget/popup_link.dart';
@@ -32,6 +37,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_extend/share_extend.dart';
 import 'package:tiengviet/tiengviet.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:vibration/vibration.dart';
+import '../main.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_state.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -55,12 +62,14 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with TickerProviderStateMixin, WidgetsBindingObserver {
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
   late DashboardBloc bloc;
   late double heightAppbar, screenWidth, screenHeight;
   late AnimationController _controllerRotateLightDark;
   late TabController tabController;
   late LocalAuthentication auth;
-  late List<GlobalObjectKey<FormState>> formKeyList;
+  GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late TextEditingController searchController;
   String tempPath = "";
   late String pathFile;
@@ -75,6 +84,8 @@ class _DashboardPageState extends State<DashboardPage>
   bool isSearch = false;
   bool isFirstSlide = false;
   bool isPermission = false;
+  late AppLifecycleState lifecycleState = AppLifecycleState.resumed;
+  CarouselController carouselController = CarouselController();
   var androidInfo;
   var sdkInt;
   var dio;
@@ -105,6 +116,7 @@ class _DashboardPageState extends State<DashboardPage>
   void initState() {
     // TODO: implement initState
     super.initState();
+    NoticationService.initialize(flutterLocalNotificationsPlugin);
     WidgetsBinding.instance!.addObserver(this);
     dio = Dio();
     pdfBox = Hive.box('pdfBox');
@@ -151,25 +163,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   didChangeAppLifecycleState(AppLifecycleState state) {
-    if (AppLifecycleState.paused == state) {
-      for (var i = 0; i < publicCloneList.length; i++) {
-        if (publicCloneList[i].isDownloadSuccess == "improgress") {
-          var item = publicCloneList[i];
-          _updateItem(
-              pdfModel: PDFModel(
-                  currentIndex: item.currentIndex,
-                  isDownloadSuccess: 'pending',
-                  isEdit: item.isEdit,
-                  isOpen: item.isOpen,
-                  pathFile: item.pathFile,
-                  urlLink: item.urlLink,
-                  propress: item.propress,
-                  status: item.status,
-                  timeOpen: item.timeOpen),
-              index: i);
-        }
-      }
-    }
+    lifecycleState = state;
   }
 
   Future<void> getPrivatePath() async {
@@ -178,6 +172,19 @@ class _DashboardPageState extends State<DashboardPage>
           configPathStr: 'privateFolder',
         ) ??
         "";
+  }
+
+  void changeLanguage() {
+    try {
+      var language = SharedPrefs().getValue(KeyPrefs.localeCode) ?? 'VI';
+      SharedPrefs()
+          .setValue(KeyPrefs.localeCode, language == "VI" ? "EN" : "VI");
+      bloc.updateLanguage(language == "VI" ? false : true);
+      Navigator.push(context,
+          MaterialPageRoute(builder: (context) => MyHomePage(isFirst: false)));
+    } catch (e) {
+      print(e);
+    }
   }
 
   void getDirPath() async {
@@ -241,8 +248,8 @@ class _DashboardPageState extends State<DashboardPage>
     heightAppbar = MediaQuery.of(context).viewPadding.top;
     screenWidth = MediaQuery.of(context).size.width;
     screenHeight = MediaQuery.of(context).size.height;
-    formKeyList =
-        new List.generate(1, (index) => GlobalObjectKey<FormState>(index));
+    // formKeyList =
+    //     new List.generate(1, (index) => GlobalObjectKey<FormState>(index));
     return SafeArea(
         top: false,
         child: GestureDetector(
@@ -306,7 +313,9 @@ class _DashboardPageState extends State<DashboardPage>
                                         : IconButton(
                                             onPressed: () => Flushbar(
                                                   messageText: Text(
-                                                      "To search in private mode, you need to unlock it before searching!",
+                                                      Language.of(context)!.trans(
+                                                              "searchPrivate") ??
+                                                          '',
                                                       style: TextStyle(
                                                           color: Colors.white)),
                                                   icon: Icon(
@@ -370,14 +379,14 @@ class _DashboardPageState extends State<DashboardPage>
                                                                       fontSize:
                                                                           15),
                                                                   hintText:
-                                                                      'Search PDF',
+                                                                      Language.of(context)!.trans("searchpdf") ??
+                                                                          "",
                                                                   contentPadding:
-                                                                      EdgeInsets
-                                                                          .fromLTRB(
-                                                                              0,
-                                                                              0,
-                                                                              0,
-                                                                              16),
+                                                                      EdgeInsets.fromLTRB(
+                                                                          0,
+                                                                          0,
+                                                                          0,
+                                                                          16),
                                                                   border:
                                                                       InputBorder
                                                                           .none),
@@ -416,9 +425,9 @@ class _DashboardPageState extends State<DashboardPage>
                                       padding: const EdgeInsets.only(
                                           left: 5, right: 15),
                                       child: InkWell(
-                                          key: formKeyList[0],
+                                          key: _formKey,
                                           onTap: () =>
-                                              optionMenu(formKeyList[0], state),
+                                              optionMenu(_formKey, state),
                                           child: Icon(
                                             Icons.more_horiz_outlined,
                                             color: Colors.white,
@@ -446,11 +455,13 @@ class _DashboardPageState extends State<DashboardPage>
                               : WatchBoxBuilder(
                                   box: pdfBox,
                                   builder: (context, pdfListBox) {
-                                    bloc.pushPublicTotalData(pdfListBox.length);
                                     // Get list dynamic type
                                     publicCloneList = pdfListBox.values
                                         .toList()
                                         .cast<PDFModel>();
+                                    bloc.publicCloneList = publicCloneList;
+                                    bloc.pushPublicTotalData(
+                                        publicCloneList.length);
                                     return publicCloneList.length != 0
                                         ? buildPublicListView(
                                             publicCloneList, state)
@@ -467,13 +478,15 @@ class _DashboardPageState extends State<DashboardPage>
                                   : WatchBoxBuilder(
                                       box: pdfPrivateBox,
                                       builder: (context, pdfListPrivateBox) {
-                                        bloc.pushPrivateTotalData(
-                                            pdfListPrivateBox.length);
                                         // Get list dynamic type
                                         privateCloneList = pdfListPrivateBox
                                             .values
                                             .toList()
                                             .cast<PDFModel>();
+                                        bloc.privateCloneList =
+                                            privateCloneList;
+                                        bloc.pushPrivateTotalData(
+                                            privateCloneList.length);
                                         return privateCloneList.length != 0
                                             ? buildListViewPrivate(
                                                 privateCloneList, state)
@@ -546,7 +559,7 @@ class _DashboardPageState extends State<DashboardPage>
           Padding(
             padding: const EdgeInsets.only(bottom: 15),
             child: Text(
-              'Unlock to see private files',
+              Language.of(context)!.trans("Unlock") ?? "",
               style: TextStyle(
                   color: state.isNight ? Colors.white : Colors.black,
                   fontSize: 13,
@@ -557,16 +570,17 @@ class _DashboardPageState extends State<DashboardPage>
             onTap: () async {
               try {
                 bool pass = await auth.authenticate(
-                    localizedReason: 'Authenticate with pattern/pin/passcode',
+                    localizedReason:
+                        Language.of(context)!.trans("AuthenPaten") ?? "",
                     biometricOnly: false);
                 if (pass) {
-                  msg = "You are Authenticated.";
+                  msg = Language.of(context)!.trans("Authenticated") ?? "";
                   setState(() {
                     isAuthen = true;
                   });
                 }
               } on PlatformException catch (ex) {
-                msg = "Error while opening fingerprint/face scanner";
+                msg = Language.of(context)!.trans("ErrorAuthen") ?? "";
               }
             },
             child: Image.asset(
@@ -607,19 +621,27 @@ class _DashboardPageState extends State<DashboardPage>
                               isPublic: tabController.index == 0,
                             )),
                   );
-                  await _updateItem(
-                      pdfModel: PDFModel(
-                          pathFile: linkResult,
-                          currentIndex: pdfItem.currentIndex,
-                          timeOpen: DateTime.now(),
-                          isOpen: pdfItem.isOpen,
-                          isEdit: pdfItem.isEdit == false
-                              ? linkResult == pdfItem.pathFile
-                                  ? false
-                                  : true
-                              : pdfItem.isEdit ?? false),
-                      index: index);
-                  if (linkResult != pdfItem.pathFile) bloc.setupTotalData();
+                  if (linkResult != null && linkResult != "") {
+                    await _updateItem(
+                        pdfModel: PDFModel(
+                            pathFile: linkResult,
+                            currentIndex: pdfItem.currentIndex,
+                            timeOpen: DateTime.now(),
+                            isOpen: pdfItem.isOpen,
+                            urlLink: pdfItem.urlLink,
+                            isNew: false,
+                            isEdit: pdfItem.isEdit == false
+                                ? linkResult == pdfItem.pathFile
+                                    ? false
+                                    : true
+                                : pdfItem.isEdit ?? false),
+                        index: index);
+                    if (linkResult != pdfItem.pathFile) {
+                      await bloc.setupTotalData();
+                      carouselController.nextPage();
+                      await File(pdfItem.pathFile!).delete();
+                    }
+                  }
                 },
                 child: AnimationConfiguration.synchronized(
                   duration: Duration(milliseconds: 1000),
@@ -652,7 +674,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.share,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Share',
+                                label:
+                                    Language.of(context)!.trans("share") ?? "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -673,7 +696,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.lock,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Private',
+                                label: Language.of(context)!.trans("private") ??
+                                    "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -689,17 +713,18 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.delete,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Delete',
+                                label:
+                                    Language.of(context)!.trans("Delete") ?? "",
                               ),
                             ],
                           ),
                           child: Builder(builder: (ctx) {
-                            if (pdfItem.isOpen != null &&
-                                pdfItem.isOpen == false) {
-                              Slidable.of(ctx)?.close();
-                            } else if (isFirstSlide) {
-                              Slidable.of(ctx)?.openEndActionPane();
-                            }
+                            // if (pdfItem.isOpen != null &&
+                            //     pdfItem.isOpen == false) {
+                            //   Slidable.of(ctx)?.close();
+                            // } else if (isFirstSlide) {
+                            //   Slidable.of(ctx)?.openEndActionPane();
+                            // }
                             return Container(
                               height: 57,
                               decoration: BoxDecoration(
@@ -713,6 +738,8 @@ class _DashboardPageState extends State<DashboardPage>
                                     offset: Offset(4, 8),
                                   ),
                                 ],
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(10.0)),
                               ),
                               child: Row(
                                 children: [
@@ -785,7 +812,9 @@ class _DashboardPageState extends State<DashboardPage>
                                                                     vertical:
                                                                         1.0),
                                                                 child: Text(
-                                                                    "Edited",
+                                                                    Language.of(context)!.trans(
+                                                                            "Edited") ??
+                                                                        "",
                                                                     style: TextStyle(
                                                                         fontWeight:
                                                                             FontWeight
@@ -820,16 +849,89 @@ class _DashboardPageState extends State<DashboardPage>
                                             style:
                                                 TextStyle(color: Colors.black)),
                                       ),
-                                      Text(
-                                        FormatDateAndTime
-                                            .convertDatetoStringWithFormat(
-                                                pdfItem.timeOpen ??
-                                                    DateTime.now(),
-                                                ' dd/MM/yyyy'),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style:
-                                            TextStyle(color: Colors.grey[600]),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            FormatDateAndTime
+                                                .convertDatetoStringWithFormat(
+                                                    pdfItem.timeOpen ??
+                                                        DateTime.now(),
+                                                    ' dd/MM/yyyy'),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                                color: Colors.grey[600]),
+                                          ),
+                                          pdfItem.isNew != null &&
+                                                  pdfItem.isNew == true
+                                              ? Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          left: 4.0),
+                                                  child: Container(
+                                                      decoration: BoxDecoration(
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors
+                                                                  .grey[200]!,
+                                                              blurRadius: 4,
+                                                              offset:
+                                                                  Offset(3, 3),
+                                                            ),
+                                                          ],
+                                                          color: Colors.red
+                                                              .withOpacity(0.9),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(5)),
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                    .symmetric(
+                                                                vertical: 2,
+                                                                horizontal: 3),
+                                                        child: Row(
+                                                          children: [
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                          .only(
+                                                                      right: 2),
+                                                              child: Container(
+                                                                width: 4,
+                                                                height: 4,
+                                                                decoration:
+                                                                    new BoxDecoration(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  shape: BoxShape
+                                                                      .circle,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                            Text(
+                                                                Language.of(context)!
+                                                                        .trans(
+                                                                            "New") ??
+                                                                    "",
+                                                                style: TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    fontSize:
+                                                                        6)),
+                                                          ],
+                                                        ),
+                                                      )),
+                                                )
+                                              : SizedBox()
+                                        ],
                                       ),
                                     ],
                                   )),
@@ -837,7 +939,7 @@ class _DashboardPageState extends State<DashboardPage>
                                           pdfItem.urlLink != null &&
                                           pdfItem.urlLink != "" &&
                                           pdfItem.isDownloadSuccess ==
-                                              "improgress"
+                                              "inprogress"
                                       ? Padding(
                                           padding:
                                               const EdgeInsets.only(right: 8.0),
@@ -848,11 +950,8 @@ class _DashboardPageState extends State<DashboardPage>
                                               percent: pdfItem.propress! / 100,
                                               center: pdfItem.propress! / 100 ==
                                                       0.0
-                                                  ? Icon(
-                                                      Icons.download,
-                                                      color: Colors.green,
-                                                      size: 18,
-                                                    )
+                                                  ? Image.asset(
+                                                      'assets/download.gif')
                                                   : new Text(
                                                       pdfItem.propress!
                                                               .toStringAsFixed(
@@ -908,6 +1007,8 @@ class _DashboardPageState extends State<DashboardPage>
                                                                 linkDownload,
                                                             isDownloadSuccess:
                                                                 "success",
+                                                            isNew: true,
+                                                            isEdit: false,
                                                             urlLink: pdfItem
                                                                     .urlLink ??
                                                                 "",
@@ -923,6 +1024,8 @@ class _DashboardPageState extends State<DashboardPage>
                                                                 "",
                                                             isDownloadSuccess:
                                                                 "fail",
+                                                            isEdit: false,
+                                                            isNew: false,
                                                             urlLink: pdfItem
                                                                     .urlLink ??
                                                                 "",
@@ -986,34 +1089,34 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> handleCloseAllList(List<dynamic> pdfListBox) async {
-    for (var i = 0; i < pdfListBox.length; i++) {
-      var pdfItem = pdfListBox[i] as PDFModel;
-      await _updateItem(
-          pdfModel: PDFModel(
-              pathFile: pdfItem.pathFile,
-              timeOpen: pdfItem.timeOpen,
-              currentIndex: pdfItem.currentIndex,
-              isEdit: pdfItem.isEdit,
-              isDownloadSuccess: pdfItem.isDownloadSuccess,
-              propress: pdfItem.propress,
-              urlLink: pdfItem.urlLink,
-              isOpen: false),
-          index: i);
-    }
+    // for (var i = 0; i < pdfListBox.length; i++) {
+    //   var pdfItem = pdfListBox[i] as PDFModel;
+    //   await _updateItem(
+    //       pdfModel: PDFModel(
+    //           pathFile: pdfItem.pathFile,
+    //           timeOpen: pdfItem.timeOpen,
+    //           currentIndex: pdfItem.currentIndex,
+    //           isEdit: pdfItem.isEdit,
+    //           isDownloadSuccess: pdfItem.isDownloadSuccess,
+    //           propress: pdfItem.propress,
+    //           urlLink: pdfItem.urlLink,
+    //           isOpen: false),
+    //       index: i);
+    // }
   }
 
   void handleList(List<dynamic> pdfListBox, int index, PDFModel pdfItem) async {
-    for (var i = 0; i < pdfListBox.length; i++) {
-      var pdfItem = pdfListBox[i] as PDFModel;
-      await _updateItem(
-          pdfModel: PDFModel(
-              pathFile: pdfItem.pathFile,
-              timeOpen: pdfItem.timeOpen,
-              isEdit: pdfItem.isEdit,
-              currentIndex: pdfItem.currentIndex,
-              isOpen: index == i ? true : false),
-          index: i);
-    }
+    // for (var i = 0; i < pdfListBox.length; i++) {
+    //   var pdfItem = pdfListBox[i] as PDFModel;
+    //   await _updateItem(
+    //       pdfModel: PDFModel(
+    //           pathFile: pdfItem.pathFile,
+    //           timeOpen: pdfItem.timeOpen,
+    //           isEdit: pdfItem.isEdit,
+    //           currentIndex: pdfItem.currentIndex,
+    //           isOpen: index == i ? true : false),
+    //       index: i);
+    // }
   }
 
   Widget buildPublicSearchListView(
@@ -1048,6 +1151,7 @@ class _DashboardPageState extends State<DashboardPage>
                       pathFile: linkResult,
                       timeOpen: DateTime.now(),
                       isOpen: pdfItem.isOpen,
+                      urlLink: pdfItem.urlLink,
                       isEdit: pdfItem.isEdit == false
                           ? linkResult == pdfItem.pathFile
                               ? false
@@ -1060,9 +1164,14 @@ class _DashboardPageState extends State<DashboardPage>
                       pdfModel: PDFModel(
                           pathFile: linkResult,
                           timeOpen: DateTime.now(),
+                          urlLink: pdfItem.urlLink,
                           isDownloadSuccess: pdfItem.isDownloadSuccess,
                           currentIndex: pdfItem.currentIndex,
-                          isEdit: pdfItem.isEdit,
+                          isEdit: pdfItem.isEdit == false
+                              ? linkResult == pdfItem.pathFile
+                                  ? false
+                                  : true
+                              : pdfItem.isEdit ?? false,
                           isOpen: pdfItem.isOpen),
                       index: publicSearchCurrentList[index].currentIndex ?? 0);
                 },
@@ -1097,7 +1206,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.share,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Share',
+                                label:
+                                    Language.of(context)!.trans("share") ?? "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -1118,7 +1228,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.lock,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Private',
+                                label: Language.of(context)!.trans("private") ??
+                                    "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -1134,7 +1245,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.delete,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Delete',
+                                label:
+                                    Language.of(context)!.trans("Delete") ?? "",
                               ),
                             ],
                           ),
@@ -1224,7 +1336,9 @@ class _DashboardPageState extends State<DashboardPage>
                                                                     vertical:
                                                                         1.0),
                                                                 child: Text(
-                                                                    "Edited",
+                                                                    Language.of(context)!.trans(
+                                                                            "Edited") ??
+                                                                        "",
                                                                     style: TextStyle(
                                                                         fontWeight:
                                                                             FontWeight
@@ -1313,6 +1427,7 @@ class _DashboardPageState extends State<DashboardPage>
           await _updateItem(
               pdfModel: PDFModel(
                 pathFile: linkDownload,
+                isNew: true,
                 isDownloadSuccess: "success",
                 urlLink: publicCloneList[i].urlLink ?? "",
                 timeOpen: publicCloneList[i].timeOpen,
@@ -1341,7 +1456,7 @@ class _DashboardPageState extends State<DashboardPage>
                           width: 60,
                           child: Image.asset('assets/no-results.png'))),
                   new Text(
-                    "The file link does not exist, please check the path",
+                    Language.of(context)!.trans("FileNotexist") ?? "",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
@@ -1375,8 +1490,8 @@ class _DashboardPageState extends State<DashboardPage>
                           child: Image.asset('assets/lock_confirm.gif'))),
                   Text(
                     isPublic
-                        ? "Are you sure you want to make this file private?"
-                        : "Are you sure you want to make this file public?",
+                        ? Language.of(context)!.trans("MakePrivate") ?? ""
+                        : Language.of(context)!.trans("MakePublic") ?? "",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
@@ -1410,7 +1525,7 @@ class _DashboardPageState extends State<DashboardPage>
                       child: Container(
                           width: 60, child: Image.asset('assets/bin.gif'))),
                   new Text(
-                    "Are you sure you want to delete this file?",
+                    Language.of(context)!.trans("DeleteFile") ?? "",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
@@ -1438,7 +1553,7 @@ class _DashboardPageState extends State<DashboardPage>
         padding: const EdgeInsets.only(bottom: 2.0),
         child: InkWell(
           onTap: () async {
-            Navigator.of(context).pop();
+            Navigator.of(context, rootNavigator: true).pop();
             if (isPublic) {
               _deleteItemList(index);
             } else {
@@ -1468,6 +1583,7 @@ class _DashboardPageState extends State<DashboardPage>
               }
             }
             await bloc.setupTotalData();
+            carouselController.nextPage();
           },
           child: Container(
               decoration: BoxDecoration(
@@ -1514,7 +1630,7 @@ class _DashboardPageState extends State<DashboardPage>
                 padding:
                     const EdgeInsets.symmetric(vertical: 8.0, horizontal: 20.0),
                 child: Text(
-                  'Cancel',
+                  Language.of(context)!.trans("Cancel") ?? "",
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               )),
@@ -1535,89 +1651,158 @@ class _DashboardPageState extends State<DashboardPage>
         padding: const EdgeInsets.only(bottom: 2.0),
         child: InkWell(
           onTap: () async {
-            Navigator.of(context).pop();
-            if (isSearch) {
-              if (isPublic) {
-                privateFile(index);
-                if (pdfItem.pathFile != null &&
-                    pdfItem.isEdit == true &&
-                    tempPath != "") {
-                  var newPath = pdfItem.pathFile!
-                      .replaceAll('publicFolder', 'privateFolder');
-                  await createFolder(tempPath);
-                  await moveFile(File(pdfItem.pathFile!), newPath);
-                  addPrivateItem(PDFModel(
-                      currentIndex: pdfItem.currentIndex,
-                      isEdit: pdfItem.isEdit,
-                      isOpen: pdfItem.isOpen,
-                      pathFile: newPath,
-                      timeOpen: pdfItem.timeOpen));
-                  bloc.setupTotalData();
+            // Navigator.of(context).pop();
+            var status = await Permission.storage.status;
+            if (status.isGranted == false) {
+              await Permission.storage.request();
+              status = await Permission.storage.status;
+            }
+            if (status.isGranted) {
+              Navigator.of(context, rootNavigator: true).pop();
+              await Future.delayed(Duration(milliseconds: 100));
+              if (isSearch) {
+                if (isPublic) {
+                  privateFile(index);
+                  if (pdfItem.pathFile != null &&
+                      pdfItem.isEdit == true &&
+                      tempPath != "") {
+                    var newPath = pdfItem.pathFile!
+                        .replaceAll('publicFolder', 'privateFolder');
+                    await createFolder(tempPath);
+                    await moveFile(File(pdfItem.pathFile!), newPath);
+                    await addPrivateItem(PDFModel(
+                        currentIndex: pdfItem.currentIndex,
+                        isEdit: pdfItem.isEdit,
+                        isOpen: pdfItem.isOpen,
+                        urlLink: pdfItem.urlLink,
+                        pathFile: newPath,
+                        timeOpen: pdfItem.timeOpen));
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  } else {
+                    addPrivateItem(pdfItem);
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  }
+                  setState(() => publicSearchCurrentList.removeAt(indexSearch));
                 } else {
-                  addPrivateItem(pdfItem);
+                  publicFile(index);
+                  if (pdfItem.pathFile != null &&
+                      pdfItem.isEdit == true &&
+                      tempPath != "") {
+                    var newPath = pdfItem.pathFile!
+                        .replaceAll('privateFolder', 'publicFolder');
+                    await createFolder(tempPath);
+                    await moveFile(File(pdfItem.pathFile!), newPath);
+                    await addPublicItem(PDFModel(
+                        currentIndex: pdfItem.currentIndex,
+                        isEdit: pdfItem.isEdit,
+                        isOpen: pdfItem.isOpen,
+                        urlLink: pdfItem.urlLink,
+                        pathFile: newPath,
+                        timeOpen: pdfItem.timeOpen));
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  } else {
+                    await addPublicItem(pdfItem);
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  }
+                  setState(
+                      () => privateSearchCurrentList.removeAt(indexSearch));
                 }
-                setState(() => publicSearchCurrentList.removeAt(indexSearch));
               } else {
-                publicFile(index);
-                if (pdfItem.pathFile != null &&
-                    pdfItem.isEdit == true &&
-                    tempPath != "") {
-                  var newPath = pdfItem.pathFile!
-                      .replaceAll('privateFolder', 'publicFolder');
-                  await createFolder(tempPath);
-                  await moveFile(File(pdfItem.pathFile!), newPath);
-                  addPublicItem(PDFModel(
-                      currentIndex: pdfItem.currentIndex,
-                      isEdit: pdfItem.isEdit,
-                      isOpen: pdfItem.isOpen,
-                      pathFile: newPath,
-                      timeOpen: pdfItem.timeOpen));
-                  bloc.setupTotalData();
+                if (isPublic) {
+                  privateFile(indexSearch);
+                  if (pdfItem.pathFile != null &&
+                      pdfItem.isEdit == true &&
+                      tempPath != "") {
+                    var newPath = pdfItem.pathFile!
+                        .replaceAll('publicFolder', 'privateFolder');
+                    await createFolder(tempPath);
+                    await moveFile(File(pdfItem.pathFile!), newPath);
+                    await addPrivateItem(PDFModel(
+                        currentIndex: pdfItem.currentIndex,
+                        isEdit: pdfItem.isEdit,
+                        isOpen: pdfItem.isOpen,
+                        urlLink: pdfItem.urlLink,
+                        pathFile: newPath,
+                        timeOpen: pdfItem.timeOpen));
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  } else {
+                    await addPrivateItem(pdfItem);
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  }
                 } else {
-                  addPublicItem(pdfItem);
+                  publicFile(indexSearch);
+                  if (pdfItem.pathFile != null &&
+                      pdfItem.isEdit == true &&
+                      tempPath != "") {
+                    var newPath = pdfItem.pathFile!
+                        .replaceAll('privateFolder', 'publicFolder');
+                    await createFolder(tempPath);
+                    await moveFile(File(pdfItem.pathFile!), newPath);
+                    addPublicItem(PDFModel(
+                        currentIndex: pdfItem.currentIndex,
+                        isEdit: pdfItem.isEdit,
+                        urlLink: pdfItem.urlLink,
+                        isOpen: pdfItem.isOpen,
+                        pathFile: newPath,
+                        timeOpen: pdfItem.timeOpen));
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  } else {
+                    await addPublicItem(pdfItem);
+                    await bloc.setupTotalData();
+                    carouselController.nextPage();
+                  }
                 }
-                setState(() => privateSearchCurrentList.removeAt(indexSearch));
               }
             } else {
-              if (isPublic) {
-                privateFile(indexSearch);
-                if (pdfItem.pathFile != null &&
-                    pdfItem.isEdit == true &&
-                    tempPath != "") {
-                  var newPath = pdfItem.pathFile!
-                      .replaceAll('publicFolder', 'privateFolder');
-                  await createFolder(tempPath);
-                  await moveFile(File(pdfItem.pathFile!), newPath);
-                  addPrivateItem(PDFModel(
-                      currentIndex: pdfItem.currentIndex,
-                      isEdit: pdfItem.isEdit,
-                      isOpen: pdfItem.isOpen,
-                      pathFile: newPath,
-                      timeOpen: pdfItem.timeOpen));
-                  bloc.setupTotalData();
-                } else {
-                  addPrivateItem(pdfItem);
-                }
-              } else {
-                publicFile(indexSearch);
-                if (pdfItem.pathFile != null &&
-                    pdfItem.isEdit == true &&
-                    tempPath != "") {
-                  var newPath = pdfItem.pathFile!
-                      .replaceAll('privateFolder', 'publicFolder');
-                  await createFolder(tempPath);
-                  await moveFile(File(pdfItem.pathFile!), newPath);
-                  addPublicItem(PDFModel(
-                      currentIndex: pdfItem.currentIndex,
-                      isEdit: pdfItem.isEdit,
-                      isOpen: pdfItem.isOpen,
-                      pathFile: newPath,
-                      timeOpen: pdfItem.timeOpen));
-                  bloc.setupTotalData();
-                } else {
-                  addPublicItem(pdfItem);
-                }
-              }
+              Navigator.of(context, rootNavigator: true).pop();
+              await Future.delayed(Duration(milliseconds: 100));
+              Flushbar(
+                  messageText: Text(
+                      Language.of(context)!.trans("PermissStorage") ?? "",
+                      style: TextStyle(color: Colors.white)),
+                  icon: Icon(Icons.warning, color: Colors.red[100]),
+                  backgroundColor: Colors.red,
+                  flushbarPosition: FlushbarPosition.TOP,
+                  duration: Duration(milliseconds: 5000),
+                  mainButton: InkWell(
+                    onTap: () async {
+                      await AppSettings.openAppSettings();
+                    },
+                    child: Container(
+                      height: 40,
+                      width: screenWidth / 3.5,
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            spreadRadius: 1,
+                            blurRadius: 2,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5.0),
+                        child: Center(
+                          child: Text(
+                              Language.of(context)!.trans("OpenSettings") ?? "",
+                              style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ),
+                  ))
+                ..show(context);
             }
           },
           child: Container(
@@ -1636,7 +1821,7 @@ class _DashboardPageState extends State<DashboardPage>
                 padding:
                     const EdgeInsets.symmetric(vertical: 8.0, horizontal: 25.0),
                 child: Text(
-                  'Sure',
+                  Language.of(context)!.trans("Sure") ?? "",
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1665,7 +1850,7 @@ class _DashboardPageState extends State<DashboardPage>
                 padding:
                     const EdgeInsets.symmetric(vertical: 8.0, horizontal: 20.0),
                 child: Text(
-                  'Cancel',
+                  Language.of(context)!.trans("Cancel") ?? "",
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               )),
@@ -1733,7 +1918,7 @@ class _DashboardPageState extends State<DashboardPage>
                 padding:
                     const EdgeInsets.symmetric(vertical: 8.0, horizontal: 25.0),
                 child: Text(
-                  'Delete',
+                  Language.of(context)!.trans("Delete") ?? "",
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1773,7 +1958,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> privateFile(int index) async {
     Flushbar(
-      messageText: Text("Your pdf file has been made private!",
+      messageText: Text(Language.of(context)!.trans("MadePrivate") ?? "",
           style: TextStyle(color: Colors.white)),
       icon: Icon(Icons.privacy_tip_outlined, color: Colors.lightBlue[50]),
       backgroundColor: Color.fromRGBO(51, 204, 204, 1.0),
@@ -1791,7 +1976,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> publicFile(int index) async {
     Flushbar(
-      messageText: Text("Your pdf file has been made public!",
+      messageText: Text(Language.of(context)!.trans("MadePublic") ?? "",
           style: TextStyle(color: Colors.white)),
       icon: Icon(Icons.privacy_tip_outlined, color: Colors.lightBlue[50]),
       backgroundColor: Color.fromRGBO(51, 204, 204, 1.0),
@@ -1815,6 +2000,12 @@ class _DashboardPageState extends State<DashboardPage>
         break;
       case 'Contact':
         launch('mailto:tainguyen0897@gmail.com?subject=PDF Editor App');
+        break;
+      case ' English':
+        changeLanguage();
+        break;
+      case 'Vietnamese':
+        changeLanguage();
         break;
       default:
         controller.isCompleted ? controller.reverse() : controller.forward();
@@ -1897,7 +2088,9 @@ class _DashboardPageState extends State<DashboardPage>
     isAuthen
         ? menu.items = [
             MenuItem.forList(
-                title: state.isNight ? 'Light theme' : 'Dark theme',
+                title: state.isNight
+                    ? Language.of(context)!.trans("Lighttheme") ?? ""
+                    : Language.of(context)!.trans("Darktheme") ?? "",
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
                 image: Image.asset(
@@ -1905,7 +2098,7 @@ class _DashboardPageState extends State<DashboardPage>
                   height: 20,
                 )),
             MenuItem.forList(
-                title: ' Private',
+                title: ' ${Language.of(context)!.trans("private") ?? ""}',
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
                 image: Image.asset(
@@ -1913,17 +2106,29 @@ class _DashboardPageState extends State<DashboardPage>
                   height: 16,
                 )),
             MenuItem.forList(
-                title: 'Contact',
+                title: Language.of(context)!.trans("Contact") ?? "",
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
                 image: Image.asset(
                   "assets/customer-service.png",
-                  height: 22,
+                  height: 20,
+                )),
+            MenuItem.forList(
+                title: state.isEnglish ? 'Vietnamese' : ' English',
+                textAlign: TextAlign.center,
+                textStyle: TextStyle(color: Colors.white),
+                image: Image.asset(
+                  state.isEnglish
+                      ? 'assets/vietnam.png'
+                      : 'assets/united-kingdom.png',
+                  height: state.isEnglish ? 23 : 20,
                 ))
           ]
         : menu.items = [
             MenuItem.forList(
-                title: state.isNight ? 'Light theme' : 'Dark theme',
+                title: state.isNight
+                    ? Language.of(context)!.trans("Lighttheme") ?? ""
+                    : Language.of(context)!.trans("Darktheme") ?? "",
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
                 image: Image.asset(
@@ -1931,12 +2136,22 @@ class _DashboardPageState extends State<DashboardPage>
                   height: 20,
                 )),
             MenuItem.forList(
-                title: 'Contact',
+                title: Language.of(context)!.trans("Contact") ?? "",
                 textAlign: TextAlign.center,
                 textStyle: TextStyle(color: Colors.white),
                 image: Image.asset(
                   "assets/customer-service.png",
                   height: 22,
+                )),
+            MenuItem.forList(
+                title: state.isEnglish ? 'Vietnamese' : ' English',
+                textAlign: TextAlign.center,
+                textStyle: TextStyle(color: Colors.white),
+                image: Image.asset(
+                  state.isEnglish
+                      ? 'assets/vietnam.png'
+                      : 'assets/united-kingdom.png',
+                  height: state.isEnglish ? 23 : 20,
                 ))
           ];
 
@@ -1968,30 +2183,68 @@ class _DashboardPageState extends State<DashboardPage>
       padding:
           const EdgeInsets.only(top: 10, bottom: 10, left: 17.0, right: 25.0),
       child: Container(
-        height: 90.0,
+        height: 85.0,
         child: Row(
           children: [
             Expanded(
-                child: CarouselSlider(
-                    items: [
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                    child: buildInfoApp(state),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                    child: buildImageInfo(state),
-                  ),
-                ],
-                    options: CarouselOptions(
-                      autoPlayInterval: Duration(seconds: 15),
-                      autoPlay: true,
-                      enableInfiniteScroll: true,
-                      initialPage: 0,
-                      viewportFraction: 1.0,
-                    ))),
+                child: StreamBuilder<int>(
+                    stream: bloc.streamPublicTotal,
+                    builder: (context, snapshot) {
+                      var totalPublic = snapshot.data ?? 0;
+                      return StreamBuilder<int>(
+                          stream: bloc.streamPrivateTotal,
+                          builder: (context, snapshot) {
+                            var totalPrivate = snapshot.data ?? 0;
+                            return StreamBuilder<int>(
+                                stream: bloc.streampublicEditCount,
+                                builder: (context, snapshot) {
+                                  var publicEditCount = snapshot.data ?? 0;
+                                  return StreamBuilder<int>(
+                                      stream: bloc.streamPrivateEditCount,
+                                      builder: (context, snapshot) {
+                                        var privateEditCount =
+                                            snapshot.data ?? 0;
+                                        return CarouselSlider(
+                                            carouselController:
+                                                carouselController,
+                                            items: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 8,
+                                                        horizontal: 8),
+                                                child: buildInfoApp(
+                                                    state,
+                                                    totalPublic,
+                                                    totalPrivate,
+                                                    publicEditCount,
+                                                    privateEditCount),
+                                              ),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 8,
+                                                        horizontal: 8),
+                                                child: buildImageInfo(state),
+                                              ),
+                                            ],
+                                            options: CarouselOptions(
+                                              autoPlayInterval:
+                                                  Duration(seconds: 15),
+                                              autoPlay: true,
+                                              enableInfiniteScroll: true,
+                                              initialPage: 0,
+                                              onPageChanged: (index, reason) {
+                                                if (index == 0) {
+                                                  bloc.setupTotalData();
+                                                }
+                                              },
+                                              viewportFraction: 1.0,
+                                            ));
+                                      });
+                                });
+                          });
+                    })),
             Padding(
               padding: const EdgeInsets.only(left: 5.0),
               child: AnimatedSize(
@@ -2005,7 +2258,7 @@ class _DashboardPageState extends State<DashboardPage>
                   },
                   child: Container(
                       width: tabController.index == 0 ? 62 : 0,
-                      height: 76,
+                      height: 70,
                       decoration: BoxDecoration(
                         color: Color.fromRGBO(255, 230, 226, 1),
                         borderRadius: BorderRadius.all(Radius.circular(15.0)),
@@ -2033,7 +2286,8 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  InkWell buildInfoApp(DashboardState state) {
+  InkWell buildInfoApp(DashboardState state, int totalPublic, int totalPrivate,
+      int publicEditCount, int privateEditCount) {
     return InkWell(
       onTap: () => closeSearch(),
       child: Container(
@@ -2058,7 +2312,9 @@ class _DashboardPageState extends State<DashboardPage>
           ],
         ),
         child: Padding(
-            padding: const EdgeInsets.all(10.0), child: buildPieChart(state)),
+            padding: const EdgeInsets.all(10.0),
+            child: buildPieChart(state, totalPublic, totalPrivate,
+                publicEditCount, privateEditCount)),
       ),
     );
   }
@@ -2113,6 +2369,20 @@ class _DashboardPageState extends State<DashboardPage>
     customModalBottomSheet(context, isFile: true, isUrl: true, fFile: () async {
       // Close bottomsheet
       Navigator.pop(context);
+      var isDownloading = publicCloneList
+          .indexWhere((element) => element.isDownloadSuccess == "inprogress");
+      if (isDownloading != -1) {
+        Flushbar(
+          messageText: Text(
+              Language.of(context)!.trans("DownloadWarning") ?? "",
+              style: TextStyle(color: Colors.white)),
+          icon: Icon(Icons.download, color: Colors.yellow[100]),
+          backgroundColor: Colors.yellow[600]!,
+          flushbarPosition: FlushbarPosition.TOP,
+          duration: Duration(milliseconds: 3000),
+        )..show(context);
+        return;
+      }
       // Check permission storage
       androidInfo = await DeviceInfoPlugin().androidInfo;
       var isPermission = await getPermission();
@@ -2123,30 +2393,42 @@ class _DashboardPageState extends State<DashboardPage>
             var pathFile = data.keys.toString();
             var subLink = pathFile.substring(1, pathFile.length - 1);
             await Future.delayed(Duration(milliseconds: 20));
-            var linkResultFile = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => ViewFileMain(
-                        isNightMode: state.isNight,
-                        isUrl: false,
-                        fileKyTen: subLink,
-                        isKySo: true,
-                        isUseMauChuKy: true,
-                        isPublic: tabController.index == 0,
-                      )),
-            );
+
             int indexItem = publicCloneList
                 .indexWhere((element) => element.pathFile == subLink);
             if (indexItem == -1) {
-              addPublicItem(PDFModel(
-                  pathFile: linkResultFile,
+              await addPublicItem(PDFModel(
+                  pathFile: subLink,
+                  isEdit: false,
+                  isNew: true,
                   timeOpen: DateTime.now(),
-                  isOpen: linkResultFile == subLink));
+                  isOpen: false));
+
+              var linkResultFile = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => ViewFileMain(
+                            isNightMode: state.isNight,
+                            isUrl: false,
+                            fileKyTen: subLink,
+                            isKySo: true,
+                            isUseMauChuKy: true,
+                            isPublic: tabController.index == 0,
+                          )));
+              await _updateItem(
+                  pdfModel: PDFModel(
+                      currentIndex: publicCloneList[0].currentIndex,
+                      isNew: true,
+                      isEdit: linkResultFile != subLink,
+                      isOpen: true,
+                      pathFile: linkResultFile,
+                      timeOpen: DateTime.now()),
+                  index: 0);
             } else {
               _deleteItemList(indexItem);
-
               addPublicItem(PDFModel(
                   currentIndex: publicCloneList[indexItem].currentIndex,
+                  isNew: true,
                   isEdit: publicCloneList[indexItem].isEdit,
                   isOpen: publicCloneList[indexItem].isOpen,
                   pathFile: publicCloneList[indexItem].pathFile,
@@ -2157,29 +2439,44 @@ class _DashboardPageState extends State<DashboardPage>
           isNightMode: state.isNight);
     }, fUrl: () {
       Navigator.pop(context);
+      var isDownloading = publicCloneList
+          .indexWhere((element) => element.isDownloadSuccess == "inprogress");
+      if (isDownloading != -1) {
+        Flushbar(
+          messageText: Text(
+              Language.of(context)!.trans("DownloadWarning") ?? "",
+              style: TextStyle(color: Colors.white)),
+          icon: Icon(Icons.download, color: Colors.yellow[100]),
+          backgroundColor: Colors.yellow[600]!,
+          flushbarPosition: FlushbarPosition.TOP,
+          duration: Duration(milliseconds: 3000),
+        )..show(context);
+        return;
+      }
       showGetLinkDialog(
           ctx: context,
           isRealModalBottom: false,
-          title: "Pick File",
+          title: Language.of(context)!.trans("PickFile") ?? "",
           isDownloadFolder: isDownloadFolder,
           isZalo: isZalo,
           onResult: (url) async {
             var path = url.keys.toString();
             var subLink = path.substring(1, path.length - 1);
             Navigator.pop(context);
+
             var indexExists = publicCloneList.indexWhere((element) =>
                 element.urlLink == subLink && element.isEdit == false);
             if (indexExists == -1) {
-              //Create new model temp
-              var newPDF = PDFModel(
+              // Add New item model
+              await addPublicItem(PDFModel(
                   urlLink: subLink,
                   pathFile: subLink,
                   propress: 0,
+                  isEdit: false,
+                  isNew: false,
                   timeOpen: DateTime.now(),
-                  isDownloadSuccess: "none");
-              // Add New item model
-              await addPublicItem(newPDF);
-              await Future.delayed(Duration(milliseconds: 200));
+                  isDownloadSuccess: "none"));
+              await Future.delayed(Duration(milliseconds: 100));
               // Get index for check Exists
               var indexwhere = publicCloneList.indexWhere((element) =>
                   element.urlLink == subLink &&
@@ -2187,21 +2484,24 @@ class _DashboardPageState extends State<DashboardPage>
               if (indexwhere != -1) {
                 var linkDownload = await downloadFilePDF(
                     subLink, indexwhere, publicCloneList[indexwhere]);
-
                 // Update final pathFile: linkDownload
                 _updateItem(
                     pdfModel: PDFModel(
                       status: linkDownload != null ? "ready" : "none",
                       isDownloadSuccess: linkDownload != null ? "true" : "fail",
                       pathFile: linkDownload != null ? linkDownload : subLink,
+                      isEdit: false,
                       urlLink: subLink,
+                      isNew: linkDownload != null ? true : false,
                       timeOpen: publicCloneList[indexwhere].timeOpen,
                     ),
                     index: indexwhere);
-                bloc.setupTotalData();
+                await bloc.setupTotalData();
+                carouselController.nextPage();
               } else {
                 Flushbar(
-                  messageText: Text("Download failed, please try again",
+                  messageText: Text(
+                      Language.of(context)!.trans("DownloadFailed") ?? "",
                       style: TextStyle(color: Colors.white)),
                   icon: Icon(Icons.warning, color: Colors.red[100]),
                   backgroundColor: Colors.red,
@@ -2212,7 +2512,7 @@ class _DashboardPageState extends State<DashboardPage>
             } else {
               Flushbar(
                 messageText: Text(
-                    "File already exists, please check the file list again",
+                    Language.of(context)!.trans("FileExist") ?? "",
                     style: TextStyle(color: Colors.white)),
                 icon: Icon(Icons.warning_amber_rounded,
                     color: Colors.yellowAccent[100]),
@@ -2228,39 +2528,62 @@ class _DashboardPageState extends State<DashboardPage>
   Future<String?> downloadFilePDF(
       String link, int index, PDFModel pdfModel) async {
     try {
-      Flushbar(
-        messageText: Text(
-            "ile is downloading, please wait for the process to complete!",
-            style: TextStyle(color: Colors.white)),
-        icon: Icon(Icons.download, color: Colors.green[100]),
-        backgroundColor: Colors.green[600]!,
-        flushbarPosition: FlushbarPosition.TOP,
-        duration: Duration(milliseconds: 3000),
-      )..show(context);
+      // Flushbar(
+      //   messageText: Text(
+      //       "File is downloading, please wait for the process to complete!",
+      //       style: TextStyle(color: Colors.white)),
+      //   icon: Icon(Icons.download, color: Colors.green[100]),
+      //   backgroundColor: Colors.green,
+      //   flushbarPosition: FlushbarPosition.TOP,
+      //   duration: Duration(milliseconds: 3000),
+      // )..show(context);
       if (dir == "") dir = (await getApplicationDocumentsDirectory()).path;
       final filename = link.substring(link.lastIndexOf("/") + 1);
+      pdfBox.putAt(
+          index,
+          PDFModel(
+              currentIndex: pdfModel.currentIndex,
+              isEdit: pdfModel.isEdit,
+              isOpen: pdfModel.isOpen,
+              pathFile: pdfModel.pathFile,
+              isDownloadSuccess: "inprogress",
+              propress: 0,
+              timeOpen: pdfModel.timeOpen,
+              urlLink: pdfModel.urlLink));
       Response response = await dio.download(link, '$dir/$filename',
           options: Options(
-              responseType: ResponseType.bytes,
-              followRedirects: false,
-              receiveDataWhenStatusError: true,
-              sendTimeout: 10000) // 60 seconds,
+            responseType: ResponseType.bytes,
+            followRedirects: false,
+            receiveDataWhenStatusError: true,
+            // receiveTimeout: 100 * 1000,
+            // sendTimeout: 100 * 1000
+          ) // 100 seconds
           , onReceiveProgress: (count, total) async {
+        var indexWhere = publicCloneList.indexWhere((element) =>
+            element.pathFile == pdfModel.pathFile &&
+            element.timeOpen == pdfModel.timeOpen &&
+            element.urlLink == pdfModel.urlLink &&
+            element.currentIndex == pdfModel.currentIndex);
         await pdfBox.putAt(
-            index,
+            indexWhere,
             PDFModel(
                 currentIndex: pdfModel.currentIndex,
                 isEdit: pdfModel.isEdit,
                 isOpen: pdfModel.isOpen,
                 pathFile: pdfModel.pathFile,
-                isDownloadSuccess: "improgress",
+                isNew: false,
+                isDownloadSuccess: "inprogress",
                 propress: (count / total) * 100,
                 timeOpen: pdfModel.timeOpen,
                 urlLink: pdfModel.urlLink));
       });
       if (response.statusCode != 404) {
+        var indexWhere = publicCloneList.indexWhere((element) =>
+            element.pathFile == pdfModel.pathFile &&
+            element.timeOpen == pdfModel.timeOpen &&
+            element.urlLink == pdfModel.urlLink);
         await pdfBox.putAt(
-            index,
+            indexWhere,
             PDFModel(
                 currentIndex: pdfModel.currentIndex,
                 isEdit: pdfModel.isEdit,
@@ -2268,25 +2591,75 @@ class _DashboardPageState extends State<DashboardPage>
                 pathFile: pdfModel.pathFile,
                 isDownloadSuccess: "success",
                 status: "true",
+                isNew: true,
                 propress: 100,
                 timeOpen: pdfModel.timeOpen,
                 urlLink: pdfModel.urlLink));
+        if (lifecycleState == AppLifecycleState.resumed) {
+          Vibration.vibrate(pattern: [50, 200, 50, 200]);
+          Flushbar(
+            title:
+                "$filename ${Language.of(context)!.trans("Downloaded") ?? ""}",
+            flushbarStyle: FlushbarStyle.FLOATING,
+            messageText: Text(Language.of(context)!.trans("AllReady") ?? "",
+                style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal)),
+            icon: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Container(
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.all(Radius.circular(15.0))),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(5.0),
+                  child: Image.asset(
+                    'assets/icon_notification.png',
+                    width: 20,
+                  ),
+                ),
+              ),
+            ),
+            titleColor: Colors.grey[350],
+            backgroundColor: Colors.black.withOpacity(0.8),
+            flushbarPosition: FlushbarPosition.TOP,
+            barBlur: 1.0,
+            margin: EdgeInsets.all(8),
+            borderRadius: BorderRadius.circular(15),
+            duration: Duration(milliseconds: 3000),
+          )..show(context);
+        } else {
+          NoticationService.showBigTextNotification(
+              title:
+                  "$filename ${Language.of(context)!.trans("Downloaded") ?? ""}",
+              body: Language.of(context)!.trans("AllReady") ?? "",
+              fln: flutterLocalNotificationsPlugin);
+        }
         return '$dir/$filename';
       } else {
-        await pushFail(index, pdfModel);
-        pushFailFlusbar();
+        var indexWhere = publicCloneList.indexWhere((element) =>
+            element.pathFile == pdfModel.pathFile &&
+            element.timeOpen == pdfModel.timeOpen &&
+            element.urlLink == pdfModel.urlLink);
+        await pushFailCase(indexWhere, pdfModel);
+        pushFailCaseFlusbar();
         return null;
       }
     } catch (e) {
-      await pushFail(index, pdfModel);
-      pushFailFlusbar();
+      var indexWhere = publicCloneList.indexWhere((element) =>
+          element.pathFile == pdfModel.pathFile &&
+          element.timeOpen == pdfModel.timeOpen &&
+          element.urlLink == pdfModel.urlLink);
+      await pushFailCase(indexWhere, pdfModel);
+      pushFailCaseFlusbar();
       return null;
     }
   }
 
-  void pushFailFlusbar() {
+  void pushFailCaseFlusbar() {
     Flushbar(
-      messageText: Text("Download failed, please try again",
+      messageText: Text(Language.of(context)!.trans("DownloadFailed") ?? "",
           style: TextStyle(color: Colors.white)),
       icon: Icon(Icons.close, color: Colors.red[100]),
       backgroundColor: Colors.red,
@@ -2295,7 +2668,7 @@ class _DashboardPageState extends State<DashboardPage>
     )..show(context);
   }
 
-  Future<void> pushFail(int index, PDFModel pdfModel) async {
+  Future<void> pushFailCase(int index, PDFModel pdfModel) async {
     await pdfBox.putAt(
         index,
         PDFModel(
@@ -2541,7 +2914,7 @@ class _DashboardPageState extends State<DashboardPage>
               if (sdkInt >= 30) {
                 WidgetsBinding.instance!.addPostFrameCallback((_) => Flushbar(
                       messageText: Text(
-                          'External storage access is denied, so the list of suggestions will be hidden',
+                          Language.of(context)!.trans("ExternalDenied") ?? "",
                           style: TextStyle(color: Colors.white)),
                       icon: Icon(Icons.warning_amber_rounded,
                           color: Colors.yellowAccent[100]),
@@ -2738,6 +3111,7 @@ class _DashboardPageState extends State<DashboardPage>
             await _updatePrivateItem(
                 pdfModel: PDFModel(
                     pathFile: linkResult,
+                    urlLink: pdfItem.urlLink,
                     currentIndex: pdfItem.currentIndex,
                     timeOpen: DateTime.now(),
                     isOpen: pdfItem.isOpen,
@@ -2778,7 +3152,7 @@ class _DashboardPageState extends State<DashboardPage>
                           icon: Icons.share,
                           spacing: 5,
                           padding: EdgeInsets.all(0),
-                          label: 'Share',
+                          label: Language.of(context)!.trans("share") ?? "",
                         ),
                         SlidableAction(
                           flex: 1,
@@ -2794,7 +3168,7 @@ class _DashboardPageState extends State<DashboardPage>
                           icon: Icons.people_alt_outlined,
                           spacing: 5,
                           padding: EdgeInsets.all(0),
-                          label: 'Public',
+                          label: Language.of(context)!.trans("public") ?? "",
                         ),
                         SlidableAction(
                           flex: 1,
@@ -2810,7 +3184,7 @@ class _DashboardPageState extends State<DashboardPage>
                           icon: Icons.delete,
                           spacing: 5,
                           padding: EdgeInsets.all(0),
-                          label: 'Delete',
+                          label: Language.of(context)!.trans("Delete") ?? "",
                         ),
                       ],
                     ),
@@ -2885,7 +3259,11 @@ class _DashboardPageState extends State<DashboardPage>
                                                                     .symmetric(
                                                                 horizontal: 0.8,
                                                                 vertical: 1.0),
-                                                        child: Text("Edited",
+                                                        child: Text(
+                                                            Language.of(context)!
+                                                                    .trans(
+                                                                        "Edited") ??
+                                                                "",
                                                             style: TextStyle(
                                                                 fontWeight:
                                                                     FontWeight
@@ -2985,6 +3363,7 @@ class _DashboardPageState extends State<DashboardPage>
                       pathFile: linkResult,
                       timeOpen: DateTime.now(),
                       isOpen: pdfItem.isOpen,
+                      urlLink: pdfItem.urlLink,
                       isEdit: pdfItem.isEdit == false
                           ? linkResult == pdfItem.pathFile
                               ? false
@@ -2995,6 +3374,7 @@ class _DashboardPageState extends State<DashboardPage>
                   _updatePrivateItem(
                       pdfModel: PDFModel(
                         pathFile: linkResult,
+                        urlLink: pdfItem.urlLink,
                         timeOpen: DateTime.now(),
                         isEdit: pdfItem.isEdit == false
                             ? linkResult == pdfItem.pathFile
@@ -3036,7 +3416,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.share,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Share',
+                                label:
+                                    Language.of(context)!.trans("share") ?? "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -3057,7 +3438,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.people_alt_outlined,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Public',
+                                label:
+                                    Language.of(context)!.trans("public") ?? "",
                               ),
                               SlidableAction(
                                 flex: 1,
@@ -3074,7 +3456,8 @@ class _DashboardPageState extends State<DashboardPage>
                                 icon: Icons.delete,
                                 spacing: 5,
                                 padding: EdgeInsets.all(0),
-                                label: 'Delete',
+                                label:
+                                    Language.of(context)!.trans("Delete") ?? "",
                               ),
                             ],
                           ),
@@ -3164,7 +3547,9 @@ class _DashboardPageState extends State<DashboardPage>
                                                                     vertical:
                                                                         1.0),
                                                                 child: Text(
-                                                                    "Edited",
+                                                                    Language.of(context)!.trans(
+                                                                            "Edited") ??
+                                                                        "",
                                                                     style: TextStyle(
                                                                         fontWeight:
                                                                             FontWeight
@@ -3193,6 +3578,7 @@ class _DashboardPageState extends State<DashboardPage>
                                             const EdgeInsets.only(bottom: 2.0),
                                         child: Text(
                                             pdfItem.pathFile?.split("/").last ??
+                                                '' ??
                                                 '',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
@@ -3242,7 +3628,8 @@ class _DashboardPageState extends State<DashboardPage>
         : buildEmptyPublish();
   }
 
-  Widget buildPieChart(DashboardState state) {
+  Widget buildPieChart(DashboardState state, int totalPublic, int totalPrivate,
+      int publicEditCount, int privateEditCount) {
     return Row(
       children: [
         Stack(
@@ -3274,58 +3661,41 @@ class _DashboardPageState extends State<DashboardPage>
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(left: 8.0, top: 3),
-                      child: StreamBuilder<int>(
-                          stream: bloc.streamPublicTotal,
-                          builder: (context, snapshot) {
-                            var totalPublic = snapshot.data ?? 0;
-                            return StreamBuilder<int>(
-                                stream: bloc.streamPrivateTotal,
-                                builder: (context, snapshot) {
-                                  var totalPrivate = snapshot.data ?? 0;
-                                  return Text(
-                                    tabController.index == 0
-                                        ? '$totalPublic files'
-                                        : isAuthen
-                                            ? '$totalPrivate private files'
-                                            : 'Private files',
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color:
-                                            Color.fromRGBO(118, 71, 248, 1.0)),
-                                  );
-                                });
-                          }),
+                      child: Text(
+                        tabController.index == 0
+                            ? totalPublic == 1
+                                ? '$totalPublic ${Language.of(context)!.trans("file")}'
+                                : '$totalPublic ${Language.of(context)!.trans("files")}'
+                            : isAuthen
+                                ? totalPrivate == 1
+                                    ? '$totalPrivate private file'
+                                    : '$totalPrivate private files'
+                                : Language.of(context)!.trans("Privatefiles") ??
+                                    "",
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color.fromRGBO(118, 71, 248, 1.0)),
+                      ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(left: 8.0, top: 3.0),
-                      child: StreamBuilder<int>(
-                          stream: bloc.streampublicEditCount,
-                          builder: (context, snapshot) {
-                            var publicCount = snapshot.data ?? 0;
-                            return StreamBuilder<int>(
-                                stream: bloc.streamPrivateEditCount,
-                                builder: (context, snapshot) {
-                                  var privateCount = snapshot.data ?? 0;
-                                  return Text(
-                                    tabController.index == 0
-                                        ? publicCount == 1
-                                            ? '($publicCount edit file, total size: ${state.totalSizePublic} MB)'
-                                            : '($publicCount edit files, total size: ${state.totalSizePublic} MB)'
-                                        : isAuthen
-                                            ? privateCount == 1
-                                                ? '($privateCount edit file, total size: ${state.totalSizePrivate} MB)'
-                                                : '($privateCount edit files, total size: ${state.totalSizePrivate} MB)'
-                                            : "Free space",
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.grey[400]),
-                                  );
-                                });
-                          }),
-                    )
+                        padding: const EdgeInsets.only(left: 8.0, top: 3.0),
+                        child: Text(
+                          tabController.index == 0
+                              ? publicEditCount == 1
+                                  ? '($publicEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePublic} MB)'
+                                  : '($publicEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePublic} MB)'
+                              : isAuthen
+                                  ? privateEditCount == 1
+                                      ? '($privateEditCount ${Language.of(context)!.trans("editFile")}: ${state.totalSizePrivate} MB)'
+                                      : '($privateEditCount ${Language.of(context)!.trans("editFiles")}: ${state.totalSizePrivate} MB)'
+                                  : '${Language.of(context)!.trans("Freespace")}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[400]),
+                        ))
                   ],
                 ),
                 Spacer(),
@@ -3345,7 +3715,7 @@ class _DashboardPageState extends State<DashboardPage>
                 center: Padding(
                   padding: const EdgeInsets.only(bottom: 1),
                   child: Text(
-                    "phone storage status (used ${(state.percent * 100).toStringAsFixed(1)}%)",
+                    "${Language.of(context)!.trans("phoneStorage") ?? ''} ${(state.percent * 100).toStringAsFixed(1)}%)",
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 7.8,
@@ -3384,19 +3754,22 @@ class _DashboardPageState extends State<DashboardPage>
               alignment: AlignmentDirectional.center,
               children: [
                 tabController.index == 0
-                    ? buttonTabbar(title: 'Recent')
+                    ? buttonTabbar(
+                        title: Language.of(context)!.trans("recent") ?? '')
                     : InkWell(
                         onTap: () async {
                           closeSearch();
                           setState(() => tabController.index = 0);
                           bloc.emitIndex(0);
                           await bloc.setupTotalData();
+                          carouselController.nextPage();
                         },
                         child: SizedBox(
                           height: 45,
                           width: (screenWidth - 50) / 2,
                           child: Center(
-                            child: Text('Recent',
+                            child: Text(
+                                Language.of(context)!.trans("recent") ?? '',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(color: Colors.grey)),
                           ),
@@ -3409,7 +3782,8 @@ class _DashboardPageState extends State<DashboardPage>
               alignment: AlignmentDirectional.center,
               children: [
                 tabController.index == 1
-                    ? buttonTabbar(title: 'Private')
+                    ? buttonTabbar(
+                        title: Language.of(context)!.trans("private") ?? '')
                     : SizedBox(
                         height: 45,
                         child: InkWell(
@@ -3420,7 +3794,7 @@ class _DashboardPageState extends State<DashboardPage>
                           },
                           child: Center(
                             child: Text(
-                              'Private',
+                              Language.of(context)!.trans("private") ?? '',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey),
                             ),
@@ -3439,8 +3813,11 @@ class _DashboardPageState extends State<DashboardPage>
     return InkWell(
       onTap: () async {
         closeSearch();
-        setState(() => tabController.index = title == 'Private' ? 1 : 0);
+        if (tabController.index == 0) {
+          setState(() => tabController.index = title == 'Private' ? 1 : 0);
+        }
         await bloc.setupTotalData();
+        carouselController.nextPage();
       },
       child: Padding(
         padding: const EdgeInsets.all(4.0),
@@ -3480,3 +3857,9 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 }
+
+// extension StringExtension on String {
+//   String capitalize() {
+//     return "${this[0].toUpperCase()}${this.substring(1).toLowerCase()}";
+//   }
+// }

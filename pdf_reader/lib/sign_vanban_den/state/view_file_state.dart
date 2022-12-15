@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:pdf_reader/sign_vanban_den/model/choose_image_model.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/utils/bloc_builder_status.dart';
 
@@ -23,6 +24,8 @@ class ViewFileState {
   bool? isShowSign;
   bool? isDraw;
   TypeEditCase? typeEditCase;
+  bool showCapImage;
+  List<ChosseImageModel> imagesSeleted;
 
   ViewFileState(
       {this.status,
@@ -43,7 +46,9 @@ class ViewFileState {
       this.typeEditCase = TypeEditCase.all,
       this.isContinue = false,
       this.isShowSign = false,
-      this.isDraw = false});
+      this.isDraw = false,
+      this.showCapImage = false,
+      required this.imagesSeleted});
   ViewFileState copyWith(
       {BlocBuilderStatusCase? status,
       BlocBuilderStatusCase? statusLoadSign,
@@ -63,7 +68,9 @@ class ViewFileState {
       bool? isContinue,
       bool? isShowSign,
       bool? isDraw,
-      TypeEditCase? typeEditCase}) {
+      TypeEditCase? typeEditCase,
+      bool? showCapImage,
+      List<ChosseImageModel>? imagesSeleted}) {
     return ViewFileState(
         status: status ?? this.status,
         statusLoadSign: statusLoadSign ?? this.statusLoadSign,
@@ -83,6 +90,8 @@ class ViewFileState {
         isContinue: isContinue ?? this.isContinue,
         isShowSign: isShowSign ?? this.isShowSign,
         isDraw: isDraw ?? this.isDraw,
-        typeEditCase: typeEditCase ?? this.typeEditCase);
+        typeEditCase: typeEditCase ?? this.typeEditCase,
+        showCapImage: showCapImage ?? this.showCapImage,
+        imagesSeleted: imagesSeleted ?? this.imagesSeleted);
   }
 }

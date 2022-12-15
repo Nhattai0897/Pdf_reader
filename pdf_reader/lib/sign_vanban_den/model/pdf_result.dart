@@ -22,6 +22,8 @@ class PDFModel {
   String? isDownloadSuccess;
   @HiveField(9)
   String? status;
+  @HiveField(10)
+  bool? isNew;
 
   PDFModel(
       {this.pathFile,
@@ -30,6 +32,7 @@ class PDFModel {
       this.currentIndex,
       this.isOpen = false,
       this.isEdit = false,
+      this.isNew = false,
       this.propress = 0,
       this.isDownloadSuccess,
       this.status = "none"});
@@ -44,6 +47,7 @@ class PDFModel {
     propress = json['Propress'];
     isDownloadSuccess = json['isDownloadSuccess'];
     status = json['Status'];
+    isNew = json['IsNew'];
   }
 
   Map<String, dynamic> toJson() {
@@ -57,6 +61,7 @@ class PDFModel {
     data['Propress'] = this.propress;
     data['isDownloadSuccess'] = this.isDownloadSuccess;
     data['Status'] = this.status;
+     data['IsNew'] = this.isNew;
     return data;
   }
 }

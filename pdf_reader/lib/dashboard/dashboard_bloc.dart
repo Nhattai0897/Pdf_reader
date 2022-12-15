@@ -4,14 +4,18 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
 import 'package:pdf_reader/utils/networks.dart';
+import 'package:pdf_reader/utils/shared_prefs.dart';
 import 'package:storage_info/storage_info.dart';
 import 'dashboard_state.dart';
 
 class DashboardBloc extends Cubit<DashboardState> {
   late BuildContext mainContext;
   List<GlobalObjectKey<FormState>> newPrivateFileLst = [];
+  List<PDFModel> publicCloneList = [];
+  List<PDFModel> privateCloneList = [];
 
   DashboardBloc()
       : super(DashboardState(
@@ -21,6 +25,7 @@ class DashboardBloc extends Cubit<DashboardState> {
           totalSizePrivate: "0",
           countEditPrivate: 0,
           indexTab: 0,
+          isEnglish: true,
         ));
 
   void initContext(BuildContext context) {
@@ -28,6 +33,8 @@ class DashboardBloc extends Cubit<DashboardState> {
     EasyLoading.init();
     configLoading();
     setupTotalData();
+    var language = SharedPrefs().getValue(KeyPrefs.localeCode) ?? 'EN';
+    updateLanguage(language == "EN" ? true : false);
   }
 
   void configLoading() {
@@ -82,11 +89,29 @@ class DashboardBloc extends Cubit<DashboardState> {
     var convertSize = formatBytes(totalSize, 2);
     var percent = await _getPercent();
     if (state.indexTab == 0) {
-      emit(state.copyWith(totalSizePublic: convertSize, percent: percent));
-      pushpublicEditCountData(fileNum);
+      var editCount = 0;
+      for (var i = 0; i < publicCloneList.length; i++) {
+        if (publicCloneList[i].isEdit == true) {
+          editCount = editCount + 1;
+        }
+      }
+      emit(state.copyWith(
+          totalSizePublic: editCount == 0 ? "0" : convertSize,
+          percent: percent));
+      await Future.delayed(Duration(milliseconds: 100));
+      pushpublicEditCountData(fileNum != editCount ? editCount : fileNum);
     } else {
-      emit(state.copyWith(totalSizePrivate: convertSize, percent: percent));
-      pushPrivateEditData(fileNum);
+      var editCount = 0;
+      for (var i = 0; i < privateCloneList.length; i++) {
+        if (privateCloneList[i].isEdit == true) {
+          editCount = editCount + 1;
+        }
+      }
+      emit(state.copyWith(
+          totalSizePrivate: editCount == 0 ? "0" : convertSize,
+          percent: percent));
+      await Future.delayed(Duration(milliseconds: 100));
+      pushPrivateEditData(fileNum != editCount ? editCount : fileNum);
     }
   }
 
@@ -101,6 +126,9 @@ class DashboardBloc extends Cubit<DashboardState> {
     var mb = bytes / 1000 / 1000;
     return mb.toStringAsFixed(decimals);
   }
+
+  void updateLanguage(bool isEnglish) =>
+      emit(state.copyWith(isEnglish: isEnglish));
 
   void warningFlushbar(
       {required String title, required LoaiThongBao loaiThongBao}) {

@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; 
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pdf_reader/sign_vanban_den/model/choose_image_model.dart';
 import 'package:pdf_reader/sign_vanban_den/state/view_file_state.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 import 'package:pdf_reader/utils/bloc_builder_status.dart';
 import 'package:pdf_reader/utils/networks.dart';
 
@@ -25,7 +27,8 @@ class ViewFileBloc extends Cubit<ViewFileState> {
             countPage: 0,
             currentPage: 0,
             isFirst: true,
-            isShowWarning: false));
+            isShowWarning: false,
+            imagesSeleted: []));
 
   void initContext(BuildContext context, String tenTepDinhKem) {
     fullPathFile = tenTepDinhKem;
@@ -94,27 +97,28 @@ class ViewFileBloc extends Cubit<ViewFileState> {
     return completer.future;
   }
 
-  void emitFileWidget({required File fileImageWidget}) {
-    emit(state.copyWith(fileImageWidget: fileImageWidget));
-  }
+  void emitFileWidget({required File fileImageWidget}) =>
+      emit(state.copyWith(fileImageWidget: fileImageWidget));
 
-  void emitTypeWidget({required TypeEditCase typeEditCase}) {
-    emit(state.copyWith(typeEditCase: typeEditCase));
-  }
+  void emitTypeWidget({required TypeEditCase typeEditCase}) =>
+      emit(state.copyWith(typeEditCase: typeEditCase));
 
-  void setCountPage({required int countPage}) {
-    emit(state.copyWith(countPage: countPage));
-  }
+  void setCountPage({required int countPage}) =>
+      emit(state.copyWith(countPage: countPage));
 
-  void setCountCurrentPage({required int currentPage}) {
-    emit(state.copyWith(currentPage: currentPage));
-  }
+  void showImageCapture({required bool isShow}) =>
+      emit(state.copyWith(showCapImage: isShow));
+
+  void setCountCurrentPage({required int currentPage}) =>
+      emit(state.copyWith(currentPage: currentPage));
+
+  void updateSeletedLst({required List<ChosseImageModel> imagesSeleted}) =>
+      emit(state.copyWith(imagesSeleted: imagesSeleted));
 
   void showLimitLength() {
     FocusScope.of(mainContext).requestFocus(FocusNode());
     warningButPhe(
-        title:
-            "Text length exceeds the allowed number of characters (allow input of 220 characters)",
+        title: Language.of(mainContext)!.trans("TextLength") ?? "",
         loaiThongBao: LoaiThongBao.canhBao);
   }
 

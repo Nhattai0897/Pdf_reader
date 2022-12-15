@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf_reader/dashboard/onboarding_intro.dart';
 import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
+import 'package:pdf_reader/utils/shared_prefs.dart';
+
 import 'dashboard/dashboard_page.dart';
 
 Future<void> main() async {
@@ -17,7 +21,15 @@ Future<void> main() async {
   await Hive.openBox('pdfBox', keyComparator: _reverseOrder);
   await Hive.openBox('pdfPriavteBox', keyComparator: _reverseOrder);
   await Hive.openBox('countPermisBox');
-  runApp(MyApp());
+  await Hive.openBox('introuctionBox');
+  await SharedPrefs.initializer();
+  var isFirst = setupIntroduction();
+  runApp(MyHomePage(isFirst: isFirst));
+}
+
+bool setupIntroduction() {
+  final Box conutPermissBox = Hive.box('introuctionBox');
+  return conutPermissBox.get('isFirst') ?? true;
 }
 
 //Sort by Datetime
@@ -39,8 +51,17 @@ int _reverseOrder(k1, k2) {
   }
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application
+// ignore: must_be_immutable
+class MyHomePage extends StatefulWidget {
+  var isFirst;
+  MyHomePage({required this.isFirst});
+  @override
+  _MyHomePageState createState() {
+    return _MyHomePageState();
+  }
+}
+
+class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([
@@ -48,19 +69,10 @@ class MyApp extends StatelessWidget {
       DeviceOrientation.portraitDown,
     ]);
     return MaterialApp(
-        title: 'Flutter Demo',
-        theme: ThemeData(
-          // This is the theme of your application.
-          //
-          // Try running your application with "flutter run". You'll see the
-          // application has a blue toolbar. Then, without quitting the app, try
-          // changing the primarySwatch below to Colors.green and then invoke
-          // "hot reload" (press "r" in the console where you ran "flutter run",
-          // or simply save your changes to "hot reload" in a Flutter IDE).
-          // Notice that the counter didn't reset back to zero; the application
-          // is not restarted.
-          primarySwatch: Colors.blue,
-        ),
-        home: DashboardHome());
+        title: 'PDF Editor',
+        localizationsDelegates: [LanguageDelegate()],
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(primarySwatch: Colors.deepPurple),
+        home: widget.isFirst ? OnBoardingPage() : DashboardHome());
   }
 }

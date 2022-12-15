@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
@@ -81,7 +82,7 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
                     width: MediaQuery.of(context).size.width,
                     child: Text(
                       widget.titleGuide == ""
-                          ? "Move the QR code into the center of the camera, the scanning will happen automatically"
+                          ? Language.of(context)!.trans("GuideCamera") ?? ""
                           : widget.titleGuide,
                       textAlign: TextAlign.center,
                       style: themeData.textTheme.headline4!.copyWith(
@@ -113,7 +114,7 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
                         child: Stack(
                           children: [
                             Hero(
-                              tag: 'scanQR',
+                              tag: Language.of(context)!.trans("scanQR") ?? "",
                               child: Image.asset(
                                 "assets/qr-code.png",
                                 width: 43,
@@ -154,7 +155,7 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
                 color: Colors.white,
               )),
           Text(
-            "Scan QR code",
+            Language.of(context)!.trans("ScanTitle") ?? "",
             textAlign: TextAlign.center,
             style: themeData.textTheme.headline4!
                 .copyWith(color: Colors.white.withOpacity(0.8), fontSize: 18.0),
@@ -176,9 +177,6 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
                       isSwitch ? "assets/flash-off.png" : "assets/flash-on.png",
                       height: 22,
                     );
-                    // Icon(
-                    //     isSwitch ? Icons.flash_on : Icons.flash_off_outlined,
-                    //     color: isSwitch ? Colors.amber[600] : Colors.white);
                   },
                 )),
           )
@@ -240,7 +238,7 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
       });
     } else {
       isGranted = true;
-      toastMessage(message: "Camera access is not granted");
+      toastMessage(message: Language.of(context)!.trans("CameraGranted") ?? "");
       Navigator.of(context).pop();
     }
   }
@@ -262,9 +260,10 @@ class _ScanQRCodeState extends State<ScanQRCode> with TickerProviderStateMixin {
   }
 
   void _onPermissionSet(BuildContext context, QRViewController ctrl, bool p) {
-    log('${DateTime.now().toIso8601String()}_onPermissionSet $p');
+    // log('${DateTime.now().toIso8601String()}_onPermissionSet $p');
     if (!p) {
-      toastMessage(message: "Camera access is not granted");
+      toastMessage(message:  Language.of(context)!.trans("CameraGranted") ??
+              "");
       Navigator.of(context).pop();
     }
   }

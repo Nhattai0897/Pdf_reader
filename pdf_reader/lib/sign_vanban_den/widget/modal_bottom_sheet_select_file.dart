@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 
 void customModalBottomSheet(BuildContext? ctx,
     {bool? isChupHinh = false,
@@ -29,7 +30,7 @@ void customModalBottomSheet(BuildContext? ctx,
               Container(
                 margin: EdgeInsets.only(top: 20.0),
                 child: Text(
-                  'Add File',
+                  Language.of(ctx)!.trans("AddFile") ?? "",
                   style: TextStyle(
                       color: Colors.black, fontWeight: FontWeight.bold),
                 ),
@@ -77,7 +78,7 @@ void customModalBottomSheet(BuildContext? ctx,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/storage_phone.png',
-                          title: 'Choose file',
+                          title:  Language.of(ctx)!.trans("Choosefile") ?? "" ,
                           function: fFile,
                         ),
                       ),
@@ -107,7 +108,7 @@ void customModalBottomSheet(BuildContext? ctx,
                       child: Expanded(
                         child: ItemFunction(
                           pathImage: 'assets/url.png',
-                          title: 'Url link',
+                          title: Language.of(ctx)!.trans("Urllink") ?? "",
                           function: fUrl,
                         ),
                       ),

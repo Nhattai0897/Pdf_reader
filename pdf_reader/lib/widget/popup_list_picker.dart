@@ -7,6 +7,7 @@ import 'dart:io' show Platform;
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pdf_reader/sign_vanban_den/utils/util.dart';
+import 'package:pdf_reader/utils/base_multi_language.dart';
 
 class PopUpListPicker extends StatefulWidget {
   final List<Map<String, String>>? listData;
@@ -225,7 +226,10 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                           ? Padding(
                                               padding: const EdgeInsets.only(
                                                   top: 15.0),
-                                              child: Text("Suggest",
+                                              child: Text(
+                                                  Language.of(context)!
+                                                          .trans("Suggest") ??
+                                                      "",
                                                   style: TextStyle(
                                                       color: Colors.black,
                                                       fontWeight:
@@ -249,7 +253,9 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                                       MainAxisAlignment.center,
                                                   children: [
                                                     Text(
-                                                      "Suggest file from ",
+                                                      Language.of(context)!.trans(
+                                                              "Suggestfrom") ??
+                                                          "",
                                                       textAlign:
                                                           TextAlign.center,
                                                       style: TextStyle(
@@ -325,7 +331,10 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                                           )
                                                         : SizedBox(),
                                                     Text(
-                                                      "folder ",
+                                                      Language.of(context)!
+                                                              .trans(
+                                                                  "folder") ??
+                                                          "",
                                                       textAlign:
                                                           TextAlign.center,
                                                       style: TextStyle(
@@ -346,7 +355,10 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                                           ? Padding(
                                               padding: const EdgeInsets.only(
                                                   top: 5.0),
-                                              child: Text("OR",
+                                              child: Text(
+                                                  Language.of(context)!
+                                                          .trans("OR") ??
+                                                      "",
                                                   style: TextStyle(
                                                       color: Colors.black,
                                                       fontWeight:
@@ -413,7 +425,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(15.0),
               child: Center(
-                child: Text("Cancel",
+                child: Text(Language.of(context)!.trans("Cancel") ?? "",
                     style: TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.bold,
@@ -449,7 +461,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                       width: 35,
                     ),
                   ),
-                  Text("Show list of suggested files",
+                  Text(Language.of(context)!.trans("ShowList") ?? "",
                       style: TextStyle(
                           decoration: TextDecoration.underline,
                           color: Color.fromRGBO(51, 204, 204, 1.0),
@@ -494,7 +506,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                   Image.asset(
                     "assets/add.png",
                   ),
-                  Text("Choose file from storage",
+                  Text(Language.of(context)!.trans("Fromstorage") ?? "",
                       style: TextStyle(
                           color: Color.fromRGBO(252, 87, 59, 1.0),
                           fontWeight: FontWeight.bold,
@@ -539,7 +551,8 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
           if (!data.keys.toString().split(".").last.contains("pdf")) {
             try {
               Flushbar(
-                messageText: Text("Please choose pdf file!",
+                messageText: Text(
+                    Language.of(context)!.trans("ChoosePDF") ?? "",
                     style: TextStyle(color: Colors.white)),
                 icon: Icon(Icons.warning, color: Colors.yellowAccent),
                 backgroundColor: Colors.amber[500]!,
