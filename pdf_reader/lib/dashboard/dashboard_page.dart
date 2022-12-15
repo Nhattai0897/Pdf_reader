@@ -35,6 +35,7 @@ import 'package:pdf_reader/widget/popup_list_picker.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_extend/share_extend.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:tiengviet/tiengviet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
@@ -84,6 +85,8 @@ class _DashboardPageState extends State<DashboardPage>
   bool isSearch = false;
   bool isFirstSlide = false;
   bool isPermission = false;
+  bool isFirst = true;
+  BuildContext? showCaseContext;
   late AppLifecycleState lifecycleState = AppLifecycleState.resumed;
   CarouselController carouselController = CarouselController();
   var androidInfo;
@@ -111,7 +114,9 @@ class _DashboardPageState extends State<DashboardPage>
 
   /// Biến dùng để hiển thị ban đầu khi chưa nhập text search(Private)
   bool isFirstPrivate = false;
-
+  final GlobalKey _one = GlobalKey();
+  final GlobalKey _two = GlobalKey();
+  final GlobalKey _three = GlobalKey();
   @override
   void initState() {
     // TODO: implement initState
@@ -156,9 +161,13 @@ class _DashboardPageState extends State<DashboardPage>
       });
     getPrivatePath();
     getDirPath();
-
-    WidgetsBinding.instance!
-        .addPostFrameCallback((_) => reDownloadFilePending());
+    WidgetsBinding.instance!.addPostFrameCallback((_) {
+      isFirst = SharedPrefs().getValue<bool>(KeyPrefs.isFirst) ?? true;
+      if (isFirst) {
+        ShowCaseWidget.of(showCaseContext!).startShowCase([_one, _two, _three]);
+      }
+      reDownloadFilePending();
+    });
   }
 
   @override
@@ -174,8 +183,12 @@ class _DashboardPageState extends State<DashboardPage>
         "";
   }
 
-  void changeLanguage() {
+  Future<void> changeLanguage() async {
     try {
+      await Hive.openBox('pdfBox', keyComparator: _reverseOrder);
+      await Hive.openBox('pdfPriavteBox', keyComparator: _reverseOrder);
+      await Hive.openBox('countPermisBox');
+      await Hive.openBox('introuctionBox');
       var language = SharedPrefs().getValue(KeyPrefs.localeCode) ?? 'VI';
       SharedPrefs()
           .setValue(KeyPrefs.localeCode, language == "VI" ? "EN" : "VI");
@@ -184,6 +197,25 @@ class _DashboardPageState extends State<DashboardPage>
           MaterialPageRoute(builder: (context) => MyHomePage(isFirst: false)));
     } catch (e) {
       print(e);
+    }
+  }
+
+//Sort by Datetime
+  int _reverseOrder(k1, k2) {
+    if (k1 is int) {
+      if (k2 is int) {
+        if (k1 > k2) {
+          return -1;
+        } else if (k1 < k2) {
+          return 1;
+        } else {
+          return 0;
+        }
+      } else {
+        return -1;
+      }
+    } else {
+      return 0;
     }
   }
 
@@ -248,261 +280,290 @@ class _DashboardPageState extends State<DashboardPage>
     heightAppbar = MediaQuery.of(context).viewPadding.top;
     screenWidth = MediaQuery.of(context).size.width;
     screenHeight = MediaQuery.of(context).size.height;
-    // formKeyList =
-    //     new List.generate(1, (index) => GlobalObjectKey<FormState>(index));
-    return SafeArea(
-        top: false,
-        child: GestureDetector(
-          onTap: () => closeSearch(),
-          child: Scaffold(
-            body: BlocBuilder<DashboardBloc, DashboardState>(
-                builder: (context, state) {
-              isSearch = state.isSearch;
-              return Container(
-                color: animation.value,
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          height: 190,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                                colors: [
-                                  Color.fromRGBO(148, 112, 251, 1.0),
-                                  Color.fromRGBO(151, 116, 247, 1.0),
-                                  Color.fromRGBO(134, 88, 249, 1.0),
-                                  Color.fromRGBO(118, 71, 248, 1.0),
-                                ],
-                                begin: const FractionalOffset(0.0, 0.0),
-                                end: const FractionalOffset(0.5, 0.4),
-                                stops: [0.0, 0.5, 0.75, 1.0],
-                                tileMode: TileMode.clamp),
-                            borderRadius: BorderRadius.only(
-                              bottomLeft: Radius.circular(30.0),
-                              bottomRight: Radius.circular(30.0),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color.fromRGBO(151, 116, 247, 0.4),
-                                blurRadius: 4,
-                                offset: Offset(4, 8),
+    return ShowCaseWidget(onFinish: () {
+      if (isFirst) {
+        SharedPrefs().setValue<bool>(KeyPrefs.isFirst, false);
+      }
+    }, builder: Builder(builder: (context) {
+      showCaseContext = context;
+      return SafeArea(
+          top: false,
+          child: GestureDetector(
+            onTap: () => closeSearch(),
+            child: Scaffold(
+              body: BlocBuilder<DashboardBloc, DashboardState>(
+                  builder: (context, state) {
+                isSearch = state.isSearch;
+                return Container(
+                  color: animation.value,
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          Container(
+                            height: 190,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                  colors: [
+                                    Color.fromRGBO(148, 112, 251, 1.0),
+                                    Color.fromRGBO(151, 116, 247, 1.0),
+                                    Color.fromRGBO(134, 88, 249, 1.0),
+                                    Color.fromRGBO(118, 71, 248, 1.0),
+                                  ],
+                                  begin: const FractionalOffset(0.0, 0.0),
+                                  end: const FractionalOffset(0.5, 0.4),
+                                  stops: [0.0, 0.5, 0.75, 1.0],
+                                  tileMode: TileMode.clamp),
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(30.0),
+                                bottomRight: Radius.circular(30.0),
                               ),
-                            ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color.fromRGBO(151, 116, 247, 0.4),
+                                  blurRadius: 4,
+                                  offset: Offset(4, 8),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        buildAnimationTime(state),
-                        Column(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.only(top: heightAppbar),
-                              child: Container(
-                                  color: Colors.transparent,
-                                  child: Row(children: [
-                                    isAuthen && tabController.index == 1 ||
-                                            tabController.index == 0
-                                        ? IconButton(
-                                            onPressed: () {
-                                              bloc.searchAction(true);
-                                            },
-                                            icon: Icon(
-                                              Icons.search,
-                                              color: Colors.white,
-                                            ))
-                                        : IconButton(
-                                            onPressed: () => Flushbar(
-                                                  messageText: Text(
-                                                      Language.of(context)!.trans(
-                                                              "searchPrivate") ??
-                                                          '',
-                                                      style: TextStyle(
-                                                          color: Colors.white)),
-                                                  icon: Icon(
-                                                      Icons
-                                                          .warning_amber_rounded,
-                                                      color: Colors
-                                                          .yellowAccent[100]),
-                                                  backgroundColor:
-                                                      Colors.yellow[700]!,
-                                                  flushbarPosition:
-                                                      FlushbarPosition.TOP,
-                                                  duration: Duration(
-                                                      milliseconds: 3000),
-                                                )..show(context),
-                                            icon: Icon(
-                                              Icons.search_off,
-                                              color: Colors.white,
-                                            )),
-                                    Expanded(
-                                        child: Stack(
-                                      children: [
-                                        Center(
-                                            child: Text(
-                                          'PDF Editor',
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold),
-                                        )),
-                                        new AnimatedSize(
-                                          curve: Curves.fastOutSlowIn,
-                                          vsync: this,
-                                          duration:
-                                              new Duration(milliseconds: 500),
-                                          child: new Container(
-                                            decoration: BoxDecoration(
+                          buildAnimationTime(state),
+                          Column(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(top: heightAppbar),
+                                child: Container(
+                                    color: Colors.transparent,
+                                    child: Row(children: [
+                                      isAuthen && tabController.index == 1 ||
+                                              tabController.index == 0
+                                          ? IconButton(
+                                              onPressed: () {
+                                                bloc.searchAction(true);
+                                              },
+                                              icon: Icon(
+                                                Icons.search,
                                                 color: Colors.white,
-                                                borderRadius: BorderRadius.all(
-                                                    Radius.circular(12.0))),
-                                            margin:
-                                                new EdgeInsets.only(right: 5.0),
-                                            height: state.isSearch ? 30 : 0.0,
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 10),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                      child: state.isSearch
-                                                          ? TextField(
-                                                              autofocus: true,
-                                                              onChanged: (keySearch) => tabController.index == 0
-                                                                  ? searchPublicList(
-                                                                      keySearch)
-                                                                  : searchPrivateList(
-                                                                      keySearch),
-                                                              decoration: InputDecoration(
-                                                                  hintStyle: TextStyle(
-                                                                      color: Colors
-                                                                          .grey,
-                                                                      fontSize:
-                                                                          15),
-                                                                  hintText:
-                                                                      Language.of(context)!.trans("searchpdf") ??
-                                                                          "",
-                                                                  contentPadding:
-                                                                      EdgeInsets.fromLTRB(
-                                                                          0,
-                                                                          0,
-                                                                          0,
-                                                                          16),
-                                                                  border:
-                                                                      InputBorder
-                                                                          .none),
-                                                              controller:
-                                                                  searchController)
-                                                          : SizedBox()),
-                                                  state.isSearch
-                                                      ? InkWell(
-                                                          onTap: () {
-                                                            isFirstPublic =
-                                                                false;
-                                                            searchController
-                                                                .clear();
-                                                            searchController
-                                                                .clear();
-                                                            FocusScope.of(
-                                                                    context)
-                                                                .unfocus();
-                                                            bloc.searchAction(
-                                                                false);
-                                                          },
-                                                          child: Icon(
-                                                            Icons.clear,
-                                                            size: 19,
-                                                            color: Colors.grey,
-                                                          ))
-                                                      : SizedBox()
-                                                ],
+                                              ))
+                                          : IconButton(
+                                              onPressed: () => Flushbar(
+                                                    messageText: Text(
+                                                        Language.of(context)!.trans(
+                                                                "searchPrivate") ??
+                                                            '',
+                                                        style: TextStyle(
+                                                            color:
+                                                                Colors.white)),
+                                                    icon: Icon(
+                                                        Icons
+                                                            .warning_amber_rounded,
+                                                        color: Colors
+                                                            .yellowAccent[100]),
+                                                    backgroundColor:
+                                                        Colors.yellow[700]!,
+                                                    flushbarPosition:
+                                                        FlushbarPosition.TOP,
+                                                    duration: Duration(
+                                                        milliseconds: 3000),
+                                                  )..show(context),
+                                              icon: Icon(
+                                                Icons.search_off,
+                                                color: Colors.white,
+                                              )),
+                                      Expanded(
+                                          child: Stack(
+                                        children: [
+                                          Center(
+                                              child: Text(
+                                            'PDF Editor',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold),
+                                          )),
+                                          new AnimatedSize(
+                                            curve: Curves.fastOutSlowIn,
+                                            vsync: this,
+                                            duration:
+                                                new Duration(milliseconds: 500),
+                                            child: new Container(
+                                              decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.all(
+                                                          Radius.circular(
+                                                              12.0))),
+                                              margin: new EdgeInsets.only(
+                                                  right: 5.0),
+                                              height: state.isSearch ? 30 : 0.0,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 10),
+                                                child: Row(
+                                                  children: [
+                                                    Expanded(
+                                                        child: state.isSearch
+                                                            ? TextField(
+                                                                autofocus: true,
+                                                                onChanged: (keySearch) => tabController.index == 0
+                                                                    ? searchPublicList(
+                                                                        keySearch)
+                                                                    : searchPrivateList(
+                                                                        keySearch),
+                                                                decoration: InputDecoration(
+                                                                    hintStyle: TextStyle(
+                                                                        color: Colors
+                                                                            .grey,
+                                                                        fontSize:
+                                                                            15),
+                                                                    hintText:
+                                                                        Language.of(context)!.trans("searchpdf") ??
+                                                                            "",
+                                                                    contentPadding:
+                                                                        EdgeInsets.fromLTRB(
+                                                                            0,
+                                                                            0,
+                                                                            0,
+                                                                            16),
+                                                                    border:
+                                                                        InputBorder
+                                                                            .none),
+                                                                controller:
+                                                                    searchController)
+                                                            : SizedBox()),
+                                                    state.isSearch
+                                                        ? InkWell(
+                                                            onTap: () {
+                                                              isFirstPublic =
+                                                                  false;
+                                                              searchController
+                                                                  .clear();
+                                                              searchController
+                                                                  .clear();
+                                                              FocusScope.of(
+                                                                      context)
+                                                                  .unfocus();
+                                                              bloc.searchAction(
+                                                                  false);
+                                                            },
+                                                            child: Icon(
+                                                              Icons.clear,
+                                                              size: 19,
+                                                              color:
+                                                                  Colors.grey,
+                                                            ))
+                                                        : SizedBox()
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        )
-                                      ],
-                                    )),
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                          left: 5, right: 15),
-                                      child: InkWell(
-                                          key: _formKey,
-                                          onTap: () =>
-                                              optionMenu(_formKey, state),
-                                          child: Icon(
-                                            Icons.more_horiz_outlined,
-                                            color: Colors.white,
-                                          )),
-                                    )
-                                  ])),
-                            ),
-                            buildTabbarWidget(state),
-                            buildTotalFile(state),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        physics: NeverScrollableScrollPhysics(),
-                        controller: tabController,
-                        children: [
-                          state.isSearch
-                              ? buildPublicSearchListView(
-                                  isFirstPublic
-                                      ? publicSearchCurrentList
-                                      : publicCloneList,
-                                  state)
-                              : WatchBoxBuilder(
-                                  box: pdfBox,
-                                  builder: (context, pdfListBox) {
-                                    // Get list dynamic type
-                                    publicCloneList = pdfListBox.values
-                                        .toList()
-                                        .cast<PDFModel>();
-                                    bloc.publicCloneList = publicCloneList;
-                                    bloc.pushPublicTotalData(
-                                        publicCloneList.length);
-                                    return publicCloneList.length != 0
-                                        ? buildPublicListView(
-                                            publicCloneList, state)
-                                        : buildEmptyPublish();
-                                  },
-                                ),
-                          isAuthen == true
-                              ? state.isSearch
-                                  ? buildListPrivateSearch(
-                                      isFirstPrivate
-                                          ? privateSearchCurrentList
-                                          : privateCloneList,
-                                      state)
-                                  : WatchBoxBuilder(
-                                      box: pdfPrivateBox,
-                                      builder: (context, pdfListPrivateBox) {
-                                        // Get list dynamic type
-                                        privateCloneList = pdfListPrivateBox
-                                            .values
-                                            .toList()
-                                            .cast<PDFModel>();
-                                        bloc.privateCloneList =
-                                            privateCloneList;
-                                        bloc.pushPrivateTotalData(
-                                            privateCloneList.length);
-                                        return privateCloneList.length != 0
-                                            ? buildListViewPrivate(
-                                                privateCloneList, state)
-                                            : buildEmptyPrivate();
-                                      },
-                                    )
-                              : buildAuthenWidget(state),
+                                          )
+                                        ],
+                                      )),
+                                      Showcase(
+                                        key: _one,
+                                        radius: BorderRadius.circular(15),
+                                        titleTextStyle: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87),
+                                        descTextStyle: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.normal,
+                                            color: Colors.black54),
+                                        blurValue: 0.1,
+                                        overlayOpacity: 0.3,
+                                        overlayColor:
+                                            Colors.black.withOpacity(0.01),
+                                        title: 'Setup',
+                                        description:
+                                            'Tap to see settings for the app: language, theme, contact...',
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                              left: 5, right: 5),
+                                          child: InkWell(
+                                              key: _formKey,
+                                              onTap: () =>
+                                                  optionMenu(_formKey, state),
+                                              child: Icon(
+                                                Icons.more_horiz_outlined,
+                                                color: Colors.white,
+                                              )),
+                                        ),
+                                      ),
+                                      SizedBox(width: 15)
+                                    ])),
+                              ),
+                              buildTabbarWidget(state),
+                              buildTotalFile(state),
+                            ],
+                          ),
                         ],
                       ),
-                    )
-                  ],
-                ),
-              );
-            }),
-          ),
-        ));
+                      Expanded(
+                        child: TabBarView(
+                          physics: NeverScrollableScrollPhysics(),
+                          controller: tabController,
+                          children: [
+                            state.isSearch
+                                ? buildPublicSearchListView(
+                                    isFirstPublic
+                                        ? publicSearchCurrentList
+                                        : publicCloneList,
+                                    state)
+                                : WatchBoxBuilder(
+                                    box: pdfBox,
+                                    builder: (context, pdfListBox) {
+                                      // Get list dynamic type
+                                      publicCloneList = pdfListBox.values
+                                          .toList()
+                                          .cast<PDFModel>();
+                                      bloc.publicCloneList = publicCloneList;
+                                      bloc.pushPublicTotalData(
+                                          publicCloneList.length);
+                                      return publicCloneList.length != 0
+                                          ? buildPublicListView(
+                                              publicCloneList, state)
+                                          : buildEmptyPublish();
+                                    },
+                                  ),
+                            isAuthen == true
+                                ? state.isSearch
+                                    ? buildListPrivateSearch(
+                                        isFirstPrivate
+                                            ? privateSearchCurrentList
+                                            : privateCloneList,
+                                        state)
+                                    : WatchBoxBuilder(
+                                        box: pdfPrivateBox,
+                                        builder: (context, pdfListPrivateBox) {
+                                          // Get list dynamic type
+                                          privateCloneList = pdfListPrivateBox
+                                              .values
+                                              .toList()
+                                              .cast<PDFModel>();
+                                          bloc.privateCloneList =
+                                              privateCloneList;
+                                          bloc.pushPrivateTotalData(
+                                              privateCloneList.length);
+                                          return privateCloneList.length != 0
+                                              ? buildListViewPrivate(
+                                                  privateCloneList, state)
+                                              : buildEmptyPrivate();
+                                        },
+                                      )
+                                : buildAuthenWidget(state),
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ));
+    }));
   }
 
   void closeSearch() {
@@ -1895,7 +1956,7 @@ class _DashboardPageState extends State<DashboardPage>
         padding: const EdgeInsets.only(bottom: 2.0),
         child: InkWell(
           onTap: () {
-            Navigator.of(context).pop();
+            Navigator.of(context, rootNavigator: true).pop();
             if (isPublic) {
               _deleteItemList(index);
             } else {
@@ -1998,13 +2059,19 @@ class _DashboardPageState extends State<DashboardPage>
       case ' Private':
         setState(() => isAuthen = false);
         break;
+      case ' Riêng tư':
+        setState(() => isAuthen = false);
+        break;
       case 'Contact':
         launch('mailto:tainguyen0897@gmail.com?subject=PDF Editor App');
         break;
-      case ' English':
-        changeLanguage();
+      case 'Liên hệ':
+        launch('mailto:tainguyen0897@gmail.com?subject=PDF Editor App');
         break;
       case 'Vietnamese':
+        changeLanguage();
+        break;
+      case ' English':
         changeLanguage();
         break;
       default:
@@ -2204,79 +2271,158 @@ class _DashboardPageState extends State<DashboardPage>
                                       builder: (context, snapshot) {
                                         var privateEditCount =
                                             snapshot.data ?? 0;
-                                        return CarouselSlider(
-                                            carouselController:
-                                                carouselController,
-                                            items: [
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        vertical: 8,
-                                                        horizontal: 8),
-                                                child: buildInfoApp(
-                                                    state,
-                                                    totalPublic,
-                                                    totalPrivate,
-                                                    publicEditCount,
-                                                    privateEditCount),
-                                              ),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        vertical: 8,
-                                                        horizontal: 8),
-                                                child: buildImageInfo(state),
-                                              ),
-                                            ],
-                                            options: CarouselOptions(
-                                              autoPlayInterval:
-                                                  Duration(seconds: 15),
-                                              autoPlay: true,
-                                              enableInfiniteScroll: true,
-                                              initialPage: 0,
-                                              onPageChanged: (index, reason) {
-                                                if (index == 0) {
-                                                  bloc.setupTotalData();
-                                                }
-                                              },
-                                              viewportFraction: 1.0,
-                                            ));
+                                        return isFirst
+                                            ? Padding(
+                                                padding: EdgeInsets.all(8.0),
+                                                child: Showcase(
+                                                  key: _two,
+                                                  radius:
+                                                      BorderRadius.circular(15),
+                                                  titleTextStyle: TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black87),
+                                                  descTextStyle: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.normal,
+                                                      color: Colors.black54),
+                                                  blurValue: 0.1,
+                                                  overlayOpacity: 0.3,
+                                                  overlayColor: Colors.black
+                                                      .withOpacity(0.01),
+                                                  title: 'File manager',
+                                                  description:
+                                                      'This is where the parameters of your files are displayed',
+                                                  child: CarouselSlider(
+                                                      carouselController:
+                                                          carouselController,
+                                                      items: [
+                                                        buildInfoApp(
+                                                            state,
+                                                            totalPublic,
+                                                            totalPrivate,
+                                                            publicEditCount,
+                                                            privateEditCount),
+                                                        buildImageInfo(state),
+                                                      ],
+                                                      options: CarouselOptions(
+                                                        autoPlayInterval:
+                                                            Duration(
+                                                                seconds: 15),
+                                                        autoPlay: true,
+                                                        enableInfiniteScroll:
+                                                            true,
+                                                        initialPage: 0,
+                                                        onPageChanged:
+                                                            (index, reason) {
+                                                          if (index == 0) {
+                                                            bloc.setupTotalData();
+                                                          }
+                                                        },
+                                                        viewportFraction: 1.0,
+                                                      )),
+                                                ),
+                                              )
+                                            : CarouselSlider(
+                                                carouselController:
+                                                    carouselController,
+                                                items: [
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            8.0),
+                                                    child: buildInfoApp(
+                                                        state,
+                                                        totalPublic,
+                                                        totalPrivate,
+                                                        publicEditCount,
+                                                        privateEditCount),
+                                                  ),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                            8.0),
+                                                    child:
+                                                        buildImageInfo(state),
+                                                  ),
+                                                ],
+                                                options: CarouselOptions(
+                                                  autoPlayInterval:
+                                                      Duration(seconds: 15),
+                                                  autoPlay: true,
+                                                  enableInfiniteScroll: true,
+                                                  initialPage: 0,
+                                                  onPageChanged:
+                                                      (index, reason) {
+                                                    if (index == 0) {
+                                                      bloc.setupTotalData();
+                                                    }
+                                                  },
+                                                  viewportFraction: 1.0,
+                                                ));
                                       });
                                 });
                           });
                     })),
-            Padding(
-              padding: const EdgeInsets.only(left: 5.0),
-              child: AnimatedSize(
-                curve: Curves.bounceInOut,
-                vsync: this,
-                duration: new Duration(milliseconds: 200),
-                child: InkWell(
-                  onTap: () {
-                    closeSearch();
-                    addFile(state);
-                  },
-                  child: Container(
-                      width: tabController.index == 0 ? 62 : 0,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: Color.fromRGBO(255, 230, 226, 1),
-                        borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.3),
-                            blurRadius: 5,
-                            offset: Offset(3, 5),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(15.0),
-                        child: Image.asset(
-                          "assets/add.png",
-                          width: 55,
+            Showcase(
+              key: _three,
+              radius: BorderRadius.circular(15),
+              titleTextStyle: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87),
+              descTextStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  color: Colors.black54),
+              blurValue: 0.1,
+              overlayOpacity: 0.3,
+              overlayColor: Colors.black.withOpacity(0.01),
+              title: 'Add files',
+              onTargetClick: () {
+                if (isFirst) {
+                  SharedPrefs().setValue<bool>(KeyPrefs.isFirst, false);
+                }
+                closeSearch();
+                addFile(state);
+              },
+              disposeOnTap: true,
+              description: 'Tap to select, add files and enjoy the features',
+              child: Padding(
+                padding: const EdgeInsets.only(left: 0.0),
+                child: AnimatedSize(
+                  curve: Curves.bounceInOut,
+                  vsync: this,
+                  duration: new Duration(milliseconds: 200),
+                  child: InkWell(
+                    onTap: () {
+                      closeSearch();
+                      addFile(state);
+                    },
+                    child: Container(
+                        width: tabController.index == 0 ? 62 : 0,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          color: Color.fromRGBO(255, 230, 226, 1),
+                          borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.3),
+                              blurRadius: 5,
+                              offset: Offset(3, 5),
+                            ),
+                          ],
                         ),
-                      )),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15.0),
+                          child: Image.asset(
+                            "assets/add.png",
+                            width: 55,
+                          ),
+                        )),
+                  ),
                 ),
               ),
             )
@@ -2305,7 +2451,7 @@ class _DashboardPageState extends State<DashboardPage>
           borderRadius: BorderRadius.all(Radius.circular(15.0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
+              color: Colors.grey.withOpacity(isFirst ? 0.0 : .3),
               blurRadius: 5,
               offset: Offset(3, 5),
             ),
@@ -2335,7 +2481,7 @@ class _DashboardPageState extends State<DashboardPage>
         borderRadius: BorderRadius.all(Radius.circular(15.0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
+            color: Colors.grey.withOpacity(isFirst ? 0.0 : .3),
             blurRadius: 5,
             offset: Offset(3, 5),
           ),
@@ -2357,7 +2503,7 @@ class _DashboardPageState extends State<DashboardPage>
                   child: InkWell(
                       onTap: () {
                         closeSearch();
-                        addFile(state);
+                        state.indexTab == 0 ? addFile(state) : null;
                       },
                       child: futureBuild()),
                 )),

@@ -10,9 +10,10 @@ class SharedPrefs {
   }
 
   ///get dynamic
-  T getValue<T>(KeyPrefs key) {
+  T? getValue<T>(KeyPrefs key) {
     try {
-      return prefs.get(key.toString()) as T;
+      var result = prefs.get(key.toString());
+      return result != null ? result as T : null;
     } catch (error) {
       throw (error);
     }
@@ -47,4 +48,7 @@ class SharedPrefs {
 enum KeyPrefs {
   /// type: string
   localeCode,
+
+  /// type: bool
+  isFirst
 }

@@ -1821,7 +1821,9 @@ class _ViewFileHomeState extends State<ViewFileHome>
 
         if (countEdit != 1) {
           //Delete old file
-          await File(pathFileLocal).delete();
+          if (!pathFileLocal.contains("/storage/emulated/0/Download/")) {
+            await File(pathFileLocal).delete();
+          }
         }
 
         //Dispose the document.

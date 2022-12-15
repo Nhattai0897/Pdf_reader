@@ -88,5 +88,7 @@
   "EnterContent":  "Vui lòng nhập nội dung!",
   "Continue":"Tiếp tục",
   "TypeSomething": "Nhập nội dung mà bạn muốn!",
-  "TextLength": "Độ dài văn bản vượt quá số ký tự cho phép (cho phép nhập 220 ký tự)"
+  "TextLength": "Độ dài văn bản vượt quá số ký tự cho phép (cho phép nhập 220 ký tự)",
+  "QRNVaild":"Mã QR không hợp lệ, vui lòng kiểm tra và thử lại!",
+  "ScanFailed":"Quét mã QR không thành công"
 }

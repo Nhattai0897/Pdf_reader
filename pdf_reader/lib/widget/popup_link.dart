@@ -194,8 +194,7 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
     try {
       var qrResult = await Navigator.of(context).push(MaterialPageRoute(
         builder: (context) => ScanQRCode(
-          titleGuide:
-              "Move the QR code into the center of the camera, the scanning will happen automatically",
+          titleGuide: Language.of(context)!.trans("GuideCamera") ?? "",
         ),
       ));
       if (qrResult == null) {
@@ -203,8 +202,7 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
       }
       if (qrResult == '') {
         Flushbar(
-          messageText: Text(
-              "The QR code is not valid, please check and try again!",
+          messageText: Text(Language.of(context)!.trans("QRNVaild") ?? "",
               style: TextStyle(color: Colors.white)),
           icon:
               Icon(Icons.privacy_tip_outlined, color: Colors.yellowAccent[50]),
@@ -219,7 +217,7 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
       getLink(qrResult);
     } catch (e) {
       Flushbar(
-        messageText: Text("QR code scanning failed",
+        messageText: Text(Language.of(context)!.trans("ScanFailed") ?? "",
             style: TextStyle(color: Colors.white)),
         icon: Icon(Icons.privacy_tip_outlined, color: Colors.redAccent[50]),
         backgroundColor: Colors.red[600]!,

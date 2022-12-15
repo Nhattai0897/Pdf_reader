@@ -88,5 +88,7 @@
   "EnterContent":  "Please enter content!",
   "Continue":"Continue",
   "TypeSomething": "Type something!",
-  "TextLength": "Text length exceeds the allowed number of characters (allow input of 220 characters)"
+  "TextLength": "Text length exceeds the allowed number of characters (allow input of 220 characters)",
+  "QRNVaild":"The QR code is not valid, please check and try again!",
+  "ScanFailed":"QR code scanning failed"
 }
