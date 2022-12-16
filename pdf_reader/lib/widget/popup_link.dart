@@ -61,8 +61,11 @@ class _PopUpLinkPickerState extends State<PopUpLinkPicker> {
     widget.isCenter != null ? widget.isCenter : true;
     showIcon(false);
     WidgetsBinding.instance!.addPostFrameCallback((_) async {
-      var cdata = await Clipboard.getData(Clipboard.kTextPlain);
-      textController.text = cdata?.text ?? "";
+      var cdata = await Clipboard.getData(Clipboard.kTextPlain) ??
+          ClipboardData(text: "");
+      if (cdata.text != "" && cdata.text!.split(".").last == "pdf") {
+        textController.text = cdata.text ?? "";
+      }
     });
   }
 

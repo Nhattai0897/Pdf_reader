@@ -440,7 +440,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
     return Container(width: 150, height: 1.0, color: Colors.grey[300]);
   }
 
-  Padding chooseSuggest(BuildContext context) {
+  Padding chooseSuggest(context) {
     return Padding(
       padding: const EdgeInsets.only(left: 15.0, right: 15.0, bottom: 5.0),
       child: InkWell(
@@ -461,7 +461,7 @@ class _PopUpListPickerState extends State<PopUpListPicker> {
                       width: 35,
                     ),
                   ),
-                  Text(Language.of(context)!.trans("ShowList") ?? "",
+                  Text(Language.of(context)!.trans("SuggestTitle") ?? "",
                       style: TextStyle(
                           decoration: TextDecoration.underline,
                           color: Color.fromRGBO(51, 204, 204, 1.0),
