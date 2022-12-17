@@ -161,9 +161,10 @@ class _DashboardPageState extends State<DashboardPage>
       });
     getPrivatePath();
     getDirPath();
-    WidgetsBinding.instance!.addPostFrameCallback((_) {
+    WidgetsBinding.instance!.addPostFrameCallback((_) async {
       isFirst = SharedPrefs().getValue<bool>(KeyPrefs.isFirst) ?? true;
       if (isFirst) {
+        await Future.delayed(Duration(milliseconds: 500));
         ShowCaseWidget.of(showCaseContext!).startShowCase([_one, _two, _three]);
       }
       reDownloadFilePending();
@@ -185,10 +186,6 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> changeLanguage() async {
     try {
-      await Hive.openBox('pdfBox', keyComparator: _reverseOrder);
-      await Hive.openBox('pdfPriavteBox', keyComparator: _reverseOrder);
-      await Hive.openBox('countPermisBox');
-      await Hive.openBox('introuctionBox');
       var language = SharedPrefs().getValue(KeyPrefs.localeCode) ?? 'VI';
       SharedPrefs()
           .setValue(KeyPrefs.localeCode, language == "VI" ? "EN" : "VI");
@@ -272,6 +269,9 @@ class _DashboardPageState extends State<DashboardPage>
     controller.dispose();
     Hive.close();
     bloc.dispose();
+    pdfBox.close();
+    pdfPrivateBox.close();
+    conutPermissBox.close();
     super.dispose();
   }
 
@@ -512,22 +512,25 @@ class _DashboardPageState extends State<DashboardPage>
                                         ? publicSearchCurrentList
                                         : publicCloneList,
                                     state)
-                                : WatchBoxBuilder(
-                                    box: pdfBox,
-                                    builder: (context, pdfListBox) {
-                                      // Get list dynamic type
-                                      publicCloneList = pdfListBox.values
-                                          .toList()
-                                          .cast<PDFModel>();
-                                      bloc.publicCloneList = publicCloneList;
-                                      bloc.pushPublicTotalData(
-                                          publicCloneList.length);
-                                      return publicCloneList.length != 0
-                                          ? buildPublicListView(
-                                              publicCloneList, state)
-                                          : buildEmptyPublish();
-                                    },
-                                  ),
+                                : pdfBox.isOpen
+                                    ? WatchBoxBuilder(
+                                        box: pdfBox,
+                                        builder: (context, pdfListBox) {
+                                          // Get list dynamic type
+                                          publicCloneList = pdfListBox.values
+                                              .toList()
+                                              .cast<PDFModel>();
+                                          bloc.publicCloneList =
+                                              publicCloneList;
+                                          bloc.pushPublicTotalData(
+                                              publicCloneList.length);
+                                          return publicCloneList.length != 0
+                                              ? buildPublicListView(
+                                                  publicCloneList, state)
+                                              : buildEmptyPublish();
+                                        },
+                                      )
+                                    : hiveClose(),
                             isAuthen == true
                                 ? state.isSearch
                                     ? buildListPrivateSearch(
@@ -535,24 +538,28 @@ class _DashboardPageState extends State<DashboardPage>
                                             ? privateSearchCurrentList
                                             : privateCloneList,
                                         state)
-                                    : WatchBoxBuilder(
-                                        box: pdfPrivateBox,
-                                        builder: (context, pdfListPrivateBox) {
-                                          // Get list dynamic type
-                                          privateCloneList = pdfListPrivateBox
-                                              .values
-                                              .toList()
-                                              .cast<PDFModel>();
-                                          bloc.privateCloneList =
-                                              privateCloneList;
-                                          bloc.pushPrivateTotalData(
-                                              privateCloneList.length);
-                                          return privateCloneList.length != 0
-                                              ? buildListViewPrivate(
-                                                  privateCloneList, state)
-                                              : buildEmptyPrivate();
-                                        },
-                                      )
+                                    : pdfPrivateBox.isOpen
+                                        ? WatchBoxBuilder(
+                                            box: pdfPrivateBox,
+                                            builder:
+                                                (context, pdfListPrivateBox) {
+                                              // Get list dynamic type
+                                              privateCloneList =
+                                                  pdfListPrivateBox.values
+                                                      .toList()
+                                                      .cast<PDFModel>();
+                                              bloc.privateCloneList =
+                                                  privateCloneList;
+                                              bloc.pushPrivateTotalData(
+                                                  privateCloneList.length);
+                                              return privateCloneList.length !=
+                                                      0
+                                                  ? buildListViewPrivate(
+                                                      privateCloneList, state)
+                                                  : buildEmptyPrivate();
+                                            },
+                                          )
+                                        : hiveClose()
                                 : buildAuthenWidget(state),
                           ],
                         ),
@@ -564,6 +571,20 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           ));
     }));
+  }
+
+  Widget hiveClose() {
+    openBox();
+    return Center(child: CircularProgressIndicator());
+  }
+
+  Future<void> openBox() async {
+    await Hive.openBox('pdfBox', keyComparator: _reverseOrder);
+    await Hive.openBox('pdfPriavteBox', keyComparator: _reverseOrder);
+    await Hive.openBox('countPermisBox');
+    await Hive.openBox('introuctionBox');
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (context) => MyHomePage(isFirst: false)));
   }
 
   void closeSearch() {
@@ -1674,7 +1695,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () =>  Navigator.of(context, rootNavigator: true).pop(),
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -1833,9 +1854,8 @@ class _DashboardPageState extends State<DashboardPage>
                   flushbarPosition: FlushbarPosition.TOP,
                   duration: Duration(milliseconds: 5000),
                   mainButton: InkWell(
-                    onTap: () async {
-                      await AppSettings.openAppSettings();
-                    },
+                    onTap: () async =>
+                      await AppSettings.openAppSettings() ,
                     child: Container(
                       height: 40,
                       width: screenWidth / 3.5,
@@ -1894,7 +1914,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () =>  Navigator.of(context, rootNavigator: true).pop() ,
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -1991,7 +2011,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () =>   Navigator.of(context, rootNavigator: true).pop() , 
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
