@@ -64,7 +64,7 @@
   "DocSave": " Document saving...",
   "DocLoad": "Document loading",
   "GallerySave": "Save image to gallery",
-  "LoadImage": " Loading image from pdf...",
+  "LoadImage": " Loading image...",
   "ChooseImgWarn": "Please choose the photo you want to save!",
   "ImgSaved": "The image has been saved to your gallery",
   "ImgSaveFaild": "Image saving failed, please try again",
@@ -91,5 +91,7 @@
   "TextLength": "Text length exceeds the allowed number of characters (allow input of 220 characters)",
   "QRNVaild":"The QR code is not valid, please check and try again!",
   "ScanFailed":"QR code scanning failed",
-  "SuggestTitle": "Show list of suggested files" 
+  "SuggestTitle": "Show list of suggested files" ,
+  "Exit_warning":"Press back again to exit",
+  "FilePreparation":"File preparation is in progress, please try again later"
 }

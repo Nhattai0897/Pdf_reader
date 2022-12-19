@@ -223,8 +223,21 @@ class _ViewFileHomeState extends State<ViewFileHome>
   }
 
   Future<bool> onWillPop() async {
-    Navigator.pop(context, pathPDF == "" ? pathOriginal : pathPDF);
-    return true;
+    if (isReady != null) {
+      Navigator.pop(context, pathPDF == "" ? pathOriginal : pathPDF);
+      return true;
+    } else {
+      Flushbar(
+        messageText: Text(Language.of(context)!.trans("FilePreparation") ?? "",
+            style: TextStyle(color: Colors.white)),
+        icon:
+            Icon(Icons.warning_amber_rounded, color: Colors.yellowAccent[100]),
+        backgroundColor: Colors.yellow[700]!,
+        flushbarPosition: FlushbarPosition.TOP,
+        duration: Duration(seconds: 1),
+      )..show(context);
+      return false;
+    }
   }
 
   void initDataUI(maincontext) {
@@ -284,7 +297,7 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                     padding: const EdgeInsets.all(3.7),
                                     child: CircularProgressIndicator(
                                         strokeWidth: 3.0,
-                                        color: Colors.white.withOpacity(0.3)),
+                                        color: Colors.white.withOpacity(0.2)),
                                   ))),
                       Expanded(
                         child: StreamBuilder<bool>(
@@ -566,9 +579,13 @@ class _ViewFileHomeState extends State<ViewFileHome>
                                           children: [
                                             Image.asset('assets/loading.gif',
                                                 width: 85),
-                                            Text(Language.of(context)!
-                                                    .trans("LoadImage") ??
-                                                "")
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 10.0),
+                                              child: Text(Language.of(context)!
+                                                      .trans("LoadImage") ??
+                                                  ""),
+                                            )
                                           ],
                                         )),
                                       ],
@@ -1035,10 +1052,6 @@ class _ViewFileHomeState extends State<ViewFileHome>
         backgroundColor: widget.isNightMode ? bgcolors.BLACK : bgcolors.WHITE,
         nightMode: widget.isNightMode,
         onRender: (_pages) async {
-          setState(() {
-            pages = _pages;
-            isReady = true;
-          });
           if (snapshotPDF.hasData) {
             if (pathFile != '') {
               await snapshotPDF.data!.setPageWithAnimation(pageIndexTemp);
@@ -1056,6 +1069,11 @@ class _ViewFileHomeState extends State<ViewFileHome>
               }
             }
           }
+          await Future.delayed(Duration(milliseconds: 300));
+          setState(() {
+            pages = _pages;
+            isReady = true;
+          });
         },
         onViewCreated: (PDFViewController pdfViewController) =>
             _controller.complete(pdfViewController),

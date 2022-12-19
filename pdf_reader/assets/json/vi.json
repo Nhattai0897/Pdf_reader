@@ -64,7 +64,7 @@
   "DocSave": " Lưu tài liệu...",
   "DocLoad": "Tải tài liệu",
   "GallerySave": "Lưu hình ảnh vào thư viện",
-  "LoadImage": " Đang tải hình ảnh từ pdf..",
+  "LoadImage": " Đang tải hình ảnh..",
   "ChooseImgWarn": "Vui lòng chọn ảnh bạn muốn lưu!",
   "ImgSaved": "Hình ảnh đã được lưu vào bộ sưu tập của bạn",
   "ImgSaveFaild": "Lưu hình ảnh không thành công, vui lòng thử lại",
@@ -91,5 +91,7 @@
   "TextLength": "Độ dài văn bản vượt quá số ký tự cho phép (cho phép nhập 220 ký tự)",
   "QRNVaild":"Mã QR không hợp lệ, vui lòng kiểm tra và thử lại!",
   "ScanFailed":"Quét mã QR không thành công",
-  "SuggestTitle": "Hiển thị danh sách đề xuất" 
+  "SuggestTitle": "Hiển thị danh sách đề xuất" ,
+  "Exit_warning":"Nhấn quay lại một lần nữa để thoát",
+  "FilePreparation":"Quá trình chuẩn bị tập tin đang diễn ra, vui lòng thử lại sau"
 }

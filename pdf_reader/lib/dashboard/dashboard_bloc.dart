@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; 
 import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
 import 'package:pdf_reader/utils/networks.dart';
@@ -30,28 +29,12 @@ class DashboardBloc extends Cubit<DashboardState> {
 
   void initContext(BuildContext context) {
     this.mainContext = context;
-    EasyLoading.init();
-    configLoading();
     setupTotalData();
     var language = SharedPrefs().getValue(KeyPrefs.localeCode) ?? 'EN';
     updateLanguage(language == "EN" ? true : false);
   }
 
-  void configLoading() {
-    EasyLoading.instance
-      ..displayDuration = const Duration(milliseconds: 2000)
-      ..indicatorType = EasyLoadingIndicatorType.fadingCircle
-      ..loadingStyle = EasyLoadingStyle.dark
-      ..indicatorSize = 45.0
-      ..radius = 10.0
-      ..progressColor = Colors.yellow
-      ..backgroundColor = Colors.green
-      ..indicatorColor = Colors.yellow
-      ..textColor = Colors.yellow
-      ..maskColor = Colors.blue.withOpacity(0.5)
-      ..userInteractions = true
-      ..dismissOnTap = false;
-  }
+
 
   void onChangeDay() => emit(state.copyWith(isNight: !state.isNight));
 

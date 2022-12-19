@@ -13,6 +13,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -86,6 +87,7 @@ class _DashboardPageState extends State<DashboardPage>
   bool isFirstSlide = false;
   bool isPermission = false;
   bool isFirst = true;
+  late DateTime currentBackPressTime;
   BuildContext? showCaseContext;
   late AppLifecycleState lifecycleState = AppLifecycleState.resumed;
   CarouselController carouselController = CarouselController();
@@ -123,6 +125,7 @@ class _DashboardPageState extends State<DashboardPage>
     super.initState();
     NoticationService.initialize(flutterLocalNotificationsPlugin);
     WidgetsBinding.instance!.addObserver(this);
+    currentBackPressTime = DateTime.now();
     dio = Dio();
     pdfBox = Hive.box('pdfBox');
     pdfPrivateBox = Hive.box('pdfPriavteBox');
@@ -267,11 +270,11 @@ class _DashboardPageState extends State<DashboardPage>
     tabController.dispose();
     _controllerRotateLightDark.dispose();
     controller.dispose();
-    Hive.close();
-    bloc.dispose();
-    pdfBox.close();
-    pdfPrivateBox.close();
-    conutPermissBox.close();
+    // Hive.close();
+    // bloc.dispose();
+    // pdfBox.close();
+    // pdfPrivateBox.close();
+    // conutPermissBox.close();
     super.dispose();
   }
 
@@ -291,302 +294,316 @@ class _DashboardPageState extends State<DashboardPage>
           child: GestureDetector(
             onTap: () => closeSearch(),
             child: Scaffold(
-              body: BlocBuilder<DashboardBloc, DashboardState>(
-                  builder: (context, state) {
-                isSearch = state.isSearch;
-                return Container(
-                  color: animation.value,
-                  child: Column(
-                    children: [
-                      Stack(
-                        children: [
-                          Container(
-                            height: 190,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                  colors: [
-                                    Color.fromRGBO(148, 112, 251, 1.0),
-                                    Color.fromRGBO(151, 116, 247, 1.0),
-                                    Color.fromRGBO(134, 88, 249, 1.0),
-                                    Color.fromRGBO(118, 71, 248, 1.0),
-                                  ],
-                                  begin: const FractionalOffset(0.0, 0.0),
-                                  end: const FractionalOffset(0.5, 0.4),
-                                  stops: [0.0, 0.5, 0.75, 1.0],
-                                  tileMode: TileMode.clamp),
-                              borderRadius: BorderRadius.only(
-                                bottomLeft: Radius.circular(30.0),
-                                bottomRight: Radius.circular(30.0),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color.fromRGBO(151, 116, 247, 0.4),
-                                  blurRadius: 4,
-                                  offset: Offset(4, 8),
+              body: WillPopScope(
+                onWillPop: onWillPop,
+                child: BlocBuilder<DashboardBloc, DashboardState>(
+                    builder: (context, state) {
+                  isSearch = state.isSearch;
+                  return Container(
+                    color: animation.value,
+                    child: Column(
+                      children: [
+                        Stack(
+                          children: [
+                            Container(
+                              height: 190,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                    colors: [
+                                      Color.fromRGBO(148, 112, 251, 1.0),
+                                      Color.fromRGBO(151, 116, 247, 1.0),
+                                      Color.fromRGBO(134, 88, 249, 1.0),
+                                      Color.fromRGBO(118, 71, 248, 1.0),
+                                    ],
+                                    begin: const FractionalOffset(0.0, 0.0),
+                                    end: const FractionalOffset(0.5, 0.4),
+                                    stops: [0.0, 0.5, 0.75, 1.0],
+                                    tileMode: TileMode.clamp),
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(30.0),
+                                  bottomRight: Radius.circular(30.0),
                                 ),
-                              ],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color.fromRGBO(151, 116, 247, 0.4),
+                                    blurRadius: 4,
+                                    offset: Offset(4, 8),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          buildAnimationTime(state),
-                          Column(
-                            children: [
-                              Padding(
-                                padding: EdgeInsets.only(top: heightAppbar),
-                                child: Container(
-                                    color: Colors.transparent,
-                                    child: Row(children: [
-                                      isAuthen && tabController.index == 1 ||
-                                              tabController.index == 0
-                                          ? IconButton(
-                                              onPressed: () {
-                                                bloc.searchAction(true);
-                                              },
-                                              icon: Icon(
-                                                Icons.search,
-                                                color: Colors.white,
-                                              ))
-                                          : IconButton(
-                                              onPressed: () => Flushbar(
-                                                    messageText: Text(
-                                                        Language.of(context)!.trans(
-                                                                "searchPrivate") ??
-                                                            '',
-                                                        style: TextStyle(
-                                                            color:
-                                                                Colors.white)),
-                                                    icon: Icon(
-                                                        Icons
-                                                            .warning_amber_rounded,
-                                                        color: Colors
-                                                            .yellowAccent[100]),
-                                                    backgroundColor:
-                                                        Colors.yellow[700]!,
-                                                    flushbarPosition:
-                                                        FlushbarPosition.TOP,
-                                                    duration: Duration(
-                                                        milliseconds: 3000),
-                                                  )..show(context),
-                                              icon: Icon(
-                                                Icons.search_off,
-                                                color: Colors.white,
-                                              )),
-                                      Expanded(
-                                          child: Stack(
-                                        children: [
-                                          Center(
-                                              child: Text(
-                                            'PDF Editor',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold),
-                                          )),
-                                          new AnimatedSize(
-                                            curve: Curves.fastOutSlowIn,
-                                            vsync: this,
-                                            duration:
-                                                new Duration(milliseconds: 500),
-                                            child: new Container(
-                                              decoration: BoxDecoration(
+                            buildAnimationTime(state),
+                            Column(
+                              children: [
+                                Padding(
+                                  padding: EdgeInsets.only(top: heightAppbar),
+                                  child: Container(
+                                      color: Colors.transparent,
+                                      child: Row(children: [
+                                        isAuthen && tabController.index == 1 ||
+                                                tabController.index == 0
+                                            ? IconButton(
+                                                onPressed: () {
+                                                  bloc.searchAction(true);
+                                                },
+                                                icon: Icon(
+                                                  Icons.search,
                                                   color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.all(
-                                                          Radius.circular(
-                                                              12.0))),
-                                              margin: new EdgeInsets.only(
-                                                  right: 5.0),
-                                              height: state.isSearch ? 30 : 0.0,
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 10),
-                                                child: Row(
-                                                  children: [
-                                                    Expanded(
-                                                        child: state.isSearch
-                                                            ? TextField(
-                                                                autofocus: true,
-                                                                onChanged: (keySearch) => tabController.index == 0
-                                                                    ? searchPublicList(
-                                                                        keySearch)
-                                                                    : searchPrivateList(
-                                                                        keySearch),
-                                                                decoration: InputDecoration(
-                                                                    hintStyle: TextStyle(
-                                                                        color: Colors
-                                                                            .grey,
-                                                                        fontSize:
-                                                                            15),
-                                                                    hintText:
-                                                                        Language.of(context)!.trans("searchpdf") ??
-                                                                            "",
-                                                                    contentPadding:
-                                                                        EdgeInsets.fromLTRB(
-                                                                            0,
-                                                                            0,
-                                                                            0,
-                                                                            16),
-                                                                    border:
-                                                                        InputBorder
-                                                                            .none),
-                                                                controller:
-                                                                    searchController)
-                                                            : SizedBox()),
-                                                    state.isSearch
-                                                        ? InkWell(
-                                                            onTap: () {
-                                                              isFirstPublic =
-                                                                  false;
-                                                              searchController
-                                                                  .clear();
-                                                              searchController
-                                                                  .clear();
-                                                              FocusScope.of(
-                                                                      context)
-                                                                  .unfocus();
-                                                              bloc.searchAction(
-                                                                  false);
-                                                            },
-                                                            child: Icon(
-                                                              Icons.clear,
-                                                              size: 19,
-                                                              color:
-                                                                  Colors.grey,
-                                                            ))
-                                                        : SizedBox()
-                                                  ],
+                                                ))
+                                            : IconButton(
+                                                onPressed: () => Flushbar(
+                                                      messageText: Text(
+                                                          Language.of(context)!
+                                                                  .trans(
+                                                                      "searchPrivate") ??
+                                                              '',
+                                                          style: TextStyle(
+                                                              color: Colors
+                                                                  .white)),
+                                                      icon: Icon(
+                                                          Icons
+                                                              .warning_amber_rounded,
+                                                          color: Colors
+                                                                  .yellowAccent[
+                                                              100]),
+                                                      backgroundColor:
+                                                          Colors.yellow[700]!,
+                                                      flushbarPosition:
+                                                          FlushbarPosition.TOP,
+                                                      duration: Duration(
+                                                          milliseconds: 3000),
+                                                    )..show(context),
+                                                icon: Icon(
+                                                  Icons.search_off,
+                                                  color: Colors.white,
+                                                )),
+                                        Expanded(
+                                            child: Stack(
+                                          children: [
+                                            Center(
+                                                child: Text(
+                                              'PDF Editor',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold),
+                                            )),
+                                            new AnimatedSize(
+                                              curve: Curves.fastOutSlowIn,
+                                              vsync: this,
+                                              duration: new Duration(
+                                                  milliseconds: 500),
+                                              child: new Container(
+                                                decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                            Radius.circular(
+                                                                12.0))),
+                                                margin: new EdgeInsets.only(
+                                                    right: 5.0),
+                                                height:
+                                                    state.isSearch ? 30 : 0.0,
+                                                child: Padding(
+                                                  padding: const EdgeInsets
+                                                          .symmetric(
+                                                      horizontal: 10),
+                                                  child: Row(
+                                                    children: [
+                                                      Expanded(
+                                                          child: state.isSearch
+                                                              ? TextField(
+                                                                  autofocus:
+                                                                      true,
+                                                                  onChanged: (keySearch) => tabController.index == 0
+                                                                      ? searchPublicList(
+                                                                          keySearch)
+                                                                      : searchPrivateList(
+                                                                          keySearch),
+                                                                  decoration: InputDecoration(
+                                                                      hintStyle: TextStyle(
+                                                                          color: Colors
+                                                                              .grey,
+                                                                          fontSize:
+                                                                              15),
+                                                                      hintText:
+                                                                          Language.of(context)!.trans("searchpdf") ??
+                                                                              "",
+                                                                      contentPadding:
+                                                                          EdgeInsets.fromLTRB(
+                                                                              0,
+                                                                              0,
+                                                                              0,
+                                                                              16),
+                                                                      border: InputBorder
+                                                                          .none),
+                                                                  controller:
+                                                                      searchController)
+                                                              : SizedBox()),
+                                                      state.isSearch
+                                                          ? InkWell(
+                                                              onTap: () {
+                                                                isFirstPublic =
+                                                                    false;
+                                                                searchController
+                                                                    .clear();
+                                                                searchController
+                                                                    .clear();
+                                                                FocusScope.of(
+                                                                        context)
+                                                                    .unfocus();
+                                                                bloc.searchAction(
+                                                                    false);
+                                                              },
+                                                              child: Icon(
+                                                                Icons.clear,
+                                                                size: 19,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ))
+                                                          : SizedBox()
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          )
-                                        ],
-                                      )),
-                                      Showcase(
-                                        key: _one,
-                                        radius: BorderRadius.circular(15),
-                                        titleTextStyle: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87),
-                                        descTextStyle: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.normal,
-                                            color: Colors.black54),
-                                        blurValue: 0.1,
-                                        overlayOpacity: 0.3,
-                                        overlayColor:
-                                            Colors.black.withOpacity(0.01),
-                                        title: 'Setup',
-                                        description:
-                                            'Tap to see settings for the app: language, theme, contact...',
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                              left: 5, right: 5),
-                                          child: InkWell(
-                                              key: _formKey,
-                                              onTap: () =>
-                                                  optionMenu(_formKey, state),
-                                              child: Icon(
-                                                Icons.more_horiz_outlined,
-                                                color: Colors.white,
-                                              )),
+                                            )
+                                          ],
+                                        )),
+                                        Showcase(
+                                          key: _one,
+                                          radius: BorderRadius.circular(15),
+                                          titleTextStyle: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87),
+                                          descTextStyle: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.normal,
+                                              color: Colors.black54),
+                                          blurValue: 0.1,
+                                          overlayOpacity: 0.3,
+                                          overlayColor:
+                                              Colors.black.withOpacity(0.01),
+                                          title: 'Setup',
+                                          description:
+                                              'Tap to see settings for the app: language, theme, contact...',
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 5, right: 5),
+                                            child: InkWell(
+                                                key: _formKey,
+                                                onTap: () =>
+                                                    optionMenu(_formKey, state),
+                                                child: Icon(
+                                                  Icons.more_horiz_outlined,
+                                                  color: Colors.white,
+                                                )),
+                                          ),
                                         ),
-                                      ),
-                                      SizedBox(width: 15)
-                                    ])),
-                              ),
-                              buildTabbarWidget(state),
-                              buildTotalFile(state),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Expanded(
-                        child: TabBarView(
-                          physics: NeverScrollableScrollPhysics(),
-                          controller: tabController,
-                          children: [
-                            state.isSearch
-                                ? buildPublicSearchListView(
-                                    isFirstPublic
-                                        ? publicSearchCurrentList
-                                        : publicCloneList,
-                                    state)
-                                : pdfBox.isOpen
-                                    ? WatchBoxBuilder(
-                                        box: pdfBox,
-                                        builder: (context, pdfListBox) {
-                                          // Get list dynamic type
-                                          publicCloneList = pdfListBox.values
-                                              .toList()
-                                              .cast<PDFModel>();
-                                          bloc.publicCloneList =
-                                              publicCloneList;
-                                          bloc.pushPublicTotalData(
-                                              publicCloneList.length);
-                                          return publicCloneList.length != 0
-                                              ? buildPublicListView(
-                                                  publicCloneList, state)
-                                              : buildEmptyPublish();
-                                        },
-                                      )
-                                    : hiveClose(),
-                            isAuthen == true
-                                ? state.isSearch
-                                    ? buildListPrivateSearch(
-                                        isFirstPrivate
-                                            ? privateSearchCurrentList
-                                            : privateCloneList,
-                                        state)
-                                    : pdfPrivateBox.isOpen
-                                        ? WatchBoxBuilder(
-                                            box: pdfPrivateBox,
-                                            builder:
-                                                (context, pdfListPrivateBox) {
-                                              // Get list dynamic type
-                                              privateCloneList =
-                                                  pdfListPrivateBox.values
-                                                      .toList()
-                                                      .cast<PDFModel>();
-                                              bloc.privateCloneList =
-                                                  privateCloneList;
-                                              bloc.pushPrivateTotalData(
-                                                  privateCloneList.length);
-                                              return privateCloneList.length !=
-                                                      0
-                                                  ? buildListViewPrivate(
-                                                      privateCloneList, state)
-                                                  : buildEmptyPrivate();
-                                            },
-                                          )
-                                        : hiveClose()
-                                : buildAuthenWidget(state),
+                                        SizedBox(width: 15)
+                                      ])),
+                                ),
+                                buildTabbarWidget(state),
+                                buildTotalFile(state),
+                              ],
+                            ),
                           ],
                         ),
-                      )
-                    ],
-                  ),
-                );
-              }),
+                        Expanded(
+                          child: TabBarView(
+                            physics: NeverScrollableScrollPhysics(),
+                            controller: tabController,
+                            children: [
+                              state.isSearch
+                                  ? buildPublicSearchListView(
+                                      isFirstPublic
+                                          ? publicSearchCurrentList
+                                          : publicCloneList,
+                                      state)
+                                  : pdfBox.isOpen
+                                      ? WatchBoxBuilder(
+                                          box: pdfBox,
+                                          builder: (context, pdfListBox) {
+                                            // Get list dynamic type
+                                            publicCloneList = pdfListBox.values
+                                                .toList()
+                                                .cast<PDFModel>();
+                                            bloc.publicCloneList =
+                                                publicCloneList;
+                                            bloc.pushPublicTotalData(
+                                                publicCloneList.length);
+                                            return publicCloneList.length != 0
+                                                ? buildPublicListView(
+                                                    publicCloneList, state)
+                                                : buildEmptyPublish();
+                                          },
+                                        )
+                                      : hiveClose(),
+                              isAuthen == true
+                                  ? state.isSearch
+                                      ? buildListPrivateSearch(
+                                          isFirstPrivate
+                                              ? privateSearchCurrentList
+                                              : privateCloneList,
+                                          state)
+                                      : pdfPrivateBox.isOpen
+                                          ? WatchBoxBuilder(
+                                              box: pdfPrivateBox,
+                                              builder:
+                                                  (context, pdfListPrivateBox) {
+                                                // Get list dynamic type
+                                                privateCloneList =
+                                                    pdfListPrivateBox.values
+                                                        .toList()
+                                                        .cast<PDFModel>();
+                                                bloc.privateCloneList =
+                                                    privateCloneList;
+                                                bloc.pushPrivateTotalData(
+                                                    privateCloneList.length);
+                                                return privateCloneList
+                                                            .length !=
+                                                        0
+                                                    ? buildListViewPrivate(
+                                                        privateCloneList, state)
+                                                    : buildEmptyPrivate();
+                                              },
+                                            )
+                                          : hiveClose()
+                                  : buildAuthenWidget(state),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  );
+                }),
+              ),
             ),
           ));
     }));
   }
 
-  Widget hiveClose() {
-    openBox();
+  Widget hiveClose() { 
     return Center(child: CircularProgressIndicator());
   }
 
-  Future<void> openBox() async {
-    await Hive.openBox('pdfBox', keyComparator: _reverseOrder);
-    await Hive.openBox('pdfPriavteBox', keyComparator: _reverseOrder);
-    await Hive.openBox('countPermisBox');
-    await Hive.openBox('introuctionBox');
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (context) => MyHomePage(isFirst: false)));
+  Future<bool> onWillPop() {
+    DateTime now = DateTime.now();
+    if (currentBackPressTime == null ||
+        now.difference(currentBackPressTime) > Duration(seconds: 2)) {
+      currentBackPressTime = now;
+      Fluttertoast.showToast(
+          msg: Language.of(context)!.trans("Exit_warning") ?? "");
+      return Future.value(false);
+    }
+    Hive.close(); 
+    pdfBox.close();
+    pdfPrivateBox.close();
+    conutPermissBox.close();
+    return Future.value(true);
   }
 
+ 
   void closeSearch() {
     if (isSearch) {
       FocusScope.of(context).unfocus();
@@ -1695,7 +1712,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () =>  Navigator.of(context, rootNavigator: true).pop(),
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -1854,8 +1871,7 @@ class _DashboardPageState extends State<DashboardPage>
                   flushbarPosition: FlushbarPosition.TOP,
                   duration: Duration(milliseconds: 5000),
                   mainButton: InkWell(
-                    onTap: () async =>
-                      await AppSettings.openAppSettings() ,
+                    onTap: () async => await AppSettings.openAppSettings(),
                     child: Container(
                       height: 40,
                       width: screenWidth / 3.5,
@@ -1914,7 +1930,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () =>  Navigator.of(context, rootNavigator: true).pop() ,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
@@ -2011,7 +2027,7 @@ class _DashboardPageState extends State<DashboardPage>
       Padding(
         padding: const EdgeInsets.only(left: 5.0, bottom: 2.0, right: 2.0),
         child: InkWell(
-          onTap: () =>   Navigator.of(context, rootNavigator: true).pop() , 
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
           child: Container(
               decoration: BoxDecoration(
                 color: Colors.grey[50],
