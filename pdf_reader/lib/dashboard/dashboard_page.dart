@@ -583,7 +583,7 @@ class _DashboardPageState extends State<DashboardPage>
     }));
   }
 
-  Widget hiveClose() { 
+  Widget hiveClose() {
     return Center(child: CircularProgressIndicator());
   }
 
@@ -596,14 +596,13 @@ class _DashboardPageState extends State<DashboardPage>
           msg: Language.of(context)!.trans("Exit_warning") ?? "");
       return Future.value(false);
     }
-    Hive.close(); 
+    Hive.close();
     pdfBox.close();
     pdfPrivateBox.close();
     conutPermissBox.close();
     return Future.value(true);
   }
 
- 
   void closeSearch() {
     if (isSearch) {
       FocusScope.of(context).unfocus();

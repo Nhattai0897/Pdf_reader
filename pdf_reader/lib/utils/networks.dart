@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:open_file/open_file.dart';
+// import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FileLocalResponse {
@@ -94,20 +94,20 @@ class FileLocalResponse {
     }
   }
 
-  Future<ResultType?> openFile(String savePath) async {
-    try {
-      //print('savePath: $savePath');
-      var resultType = await OpenFile.open(savePath);
-      if (resultType.type == ResultType.done) {
-      } else if (resultType.type == ResultType.noAppToOpen) {
-        return ResultType.noAppToOpen;
-      } else if (resultType.type == ResultType.error) {
-        return ResultType.error;
-      }
-    } catch (error) {
-      throw (error);
-    }
-  }
+  // Future<ResultType?> openFile(String savePath) async {
+  //   try {
+  //     //print('savePath: $savePath');
+  //     var resultType = await OpenFile.open(savePath);
+  //     if (resultType.type == ResultType.done) {
+  //     } else if (resultType.type == ResultType.noAppToOpen) {
+  //       return ResultType.noAppToOpen;
+  //     } else if (resultType.type == ResultType.error) {
+  //       return ResultType.error;
+  //     }
+  //   } catch (error) {
+  //     throw (error);
+  //   }
+  // }
 
   Future<String?> checkFileExist(
       String? fileName, String? configPathStr) async {
