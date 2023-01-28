@@ -165,6 +165,11 @@ class _DashboardPageState extends State<DashboardPage>
     getPrivatePath();
     getDirPath();
     WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      var isDarkMode = await bloc.checkTheme();
+      if (isDarkMode) {
+        controller.isCompleted ? controller.reverse() : controller.forward();
+      }
+
       isFirst = SharedPrefs().getValue<bool>(KeyPrefs.isFirst) ?? true;
       if (isFirst) {
         await Future.delayed(Duration(milliseconds: 500));

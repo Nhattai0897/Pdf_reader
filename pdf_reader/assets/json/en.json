@@ -93,5 +93,6 @@
   "ScanFailed":"QR code scanning failed",
   "SuggestTitle": "Show list of suggested files" ,
   "Exit_warning":"Press back again to exit",
-  "FilePreparation":"File preparation is in progress, please try again later"
+  "FilePreparation":"File preparation is in progress, please try again later",
+  "DarkModeWarning": "You are using dark mode, to change please go back to the settings on the homepage."
 }

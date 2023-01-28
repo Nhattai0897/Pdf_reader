@@ -93,5 +93,6 @@
   "ScanFailed":"Quét mã QR không thành công",
   "SuggestTitle": "Hiển thị danh sách đề xuất" ,
   "Exit_warning":"Nhấn quay lại một lần nữa để thoát",
-  "FilePreparation":"Quá trình chuẩn bị tập tin đang diễn ra, vui lòng thử lại sau"
+  "FilePreparation":"Quá trình chuẩn bị tập tin đang diễn ra, vui lòng thử lại sau",
+  "DarkModeWarning": "Bạn đang sử dụng chế độ tối!, để thay đổi vui lòng quay lại phần cài đặt ở trang chủ"
 }

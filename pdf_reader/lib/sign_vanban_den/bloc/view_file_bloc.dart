@@ -30,10 +30,11 @@ class ViewFileBloc extends Cubit<ViewFileState> {
             isShowWarning: false,
             imagesSeleted: []));
 
-  void initContext(BuildContext context, String tenTepDinhKem) {
+  void initContext(
+      BuildContext context, String tenTepDinhKem, bool isDarkMode) {
     fullPathFile = tenTepDinhKem;
     this.mainContext = context;
-    checkFirstTime();
+    checkFirstTime(); 
   }
 
   void checkFirstTime() => isFirst = false;

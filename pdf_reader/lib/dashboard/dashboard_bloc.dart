@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pdf_reader/sign_vanban_den/model/pdf_result.dart';
 import 'package:pdf_reader/sign_vanban_den/widget/showFlushbar.dart';
 import 'package:pdf_reader/utils/networks.dart';
 import 'package:pdf_reader/utils/shared_prefs.dart';
+import 'package:printing/printing.dart';
 import 'package:storage_info/storage_info.dart';
 import 'dashboard_state.dart';
 
@@ -34,9 +35,18 @@ class DashboardBloc extends Cubit<DashboardState> {
     updateLanguage(language == "EN" ? true : false);
   }
 
+  void onChangeDay() {
+    emit(state.copyWith(isNight: !state.isNight));
+    SharedPrefs().setValue<bool>(KeyPrefs.isDarkMode, state.isNight);
+  }
 
-
-  void onChangeDay() => emit(state.copyWith(isNight: !state.isNight));
+  Future<bool> checkTheme() async {
+    var isDarkMode = SharedPrefs().getValue<bool>(KeyPrefs.isDarkMode) ?? false;
+    if (isDarkMode != state.isNight) {
+      emit(state.copyWith(isNight: isDarkMode));
+    }
+    return state.isNight;
+  }
 
   Future<void> setupTotalData() async {
     var tempPath = await FileLocalResponse().getPathLocal(

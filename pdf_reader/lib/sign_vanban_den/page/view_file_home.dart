@@ -1714,9 +1714,19 @@ class _ViewFileHomeState extends State<ViewFileHome>
     cancelToken = CancelToken();
     random = new Random();
     bloc = BlocProvider.of<ViewFileBloc>(context);
-    bloc.initContext(context, pathFile.toString());
+    bloc.initContext(context, pathFile.toString(), widget.isNightMode);
     pathPDF = pathFile;
     WidgetsBinding.instance!.addPostFrameCallback((_) async {
+      if (widget.isNightMode) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(Language.of(context)!.trans("DarkModeWarning") ?? ""),
+          duration: Duration(milliseconds: 1200),
+          backgroundColor: Colors.grey[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(20))),
+        ));
+      }
       tempPath = await FileLocalResponse().getPathLocal(
         ePathType: EPathType.Storage,
         configPathStr: widget.isPublic ? 'publicFolder' : 'privateFolder',

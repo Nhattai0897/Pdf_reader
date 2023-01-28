@@ -50,5 +50,8 @@ enum KeyPrefs {
   localeCode,
 
   /// type: bool
-  isFirst
+  isFirst,
+
+  /// type: bool
+  isDarkMode
 }
