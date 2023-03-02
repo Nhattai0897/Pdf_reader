@@ -1,2 +1,2 @@
 # Pdf_reader
-Ứng dụng dọc file pdf flutter
+Ứng dụng xem và chỉ sửa tệp pdf flutter
